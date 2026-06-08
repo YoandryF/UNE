@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f0f1a">
+<link rel="manifest" href="manifest.json">
+<title>Consumo Eléctrico - UNE Cuba</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0f0f1a;--card:#1a1a2e;--card2:#16213e;--accent:#00d4ff;--accent2:#e94560;--accent3:#7c3aed;--text:#f0f0f0;--muted:#8892b0;--border:rgba(255,255,255,.06);--input-bg:rgba(15,52,96,.5)}
+[data-theme=light]{--bg:#f4f6f9;--card:#fff;--card2:#eef2f7;--accent:#0077cc;--accent2:#d63050;--accent3:#6d28d9;--text:#1a1a2e;--muted:#5a6a7a;--border:rgba(0,0,0,.08);--input-bg:#f0f4f8}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:1rem;transition:background .3s,color .3s}
+h1{text-align:center;margin-bottom:.2rem;font-size:1.5rem;background:linear-gradient(135deg,var(--accent),var(--accent3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800}
+.subtitle{text-align:center;color:var(--muted);font-size:.8rem;margin-bottom:1rem}
+.top-bar{display:flex;justify-content:center;gap:.5rem;margin-bottom:1rem;max-width:720px;margin-left:auto;margin-right:auto}
+.top-bar select,.top-bar button{padding:.4rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;cursor:pointer}
+.tabs{display:flex;gap:0;max-width:720px;margin:0 auto 1rem;background:var(--card);border-radius:12px;padding:3px;box-shadow:0 4px 20px rgba(0,0,0,.15);overflow-x:auto}
+.tabs button{flex:1;padding:.55rem .3rem;border:none;border-radius:9px;background:transparent;color:var(--muted);font-size:.75rem;cursor:pointer;transition:all .2s;font-weight:500;white-space:nowrap;min-width:70px}
+.tabs button.active{background:linear-gradient(135deg,var(--accent),var(--accent3));color:#fff;font-weight:700;box-shadow:0 3px 12px rgba(0,212,255,.2)}
+.card{background:var(--card);border-radius:14px;padding:1.5rem;margin-bottom:1rem;max-width:720px;margin-left:auto;margin-right:auto;display:none;box-shadow:0 6px 24px rgba(0,0,0,.15);border:1px solid var(--border)}
+.card.visible{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+label{display:block;margin-bottom:.3rem;font-size:.82rem;color:var(--muted);font-weight:500}
+input,select,textarea{width:100%;padding:.65rem .9rem;border:1px solid var(--border);border-radius:9px;background:var(--input-bg);color:var(--text);font-size:.95rem;margin-bottom:.8rem;transition:border-color .2s}
+input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
+input[type=file]{padding:.4rem;font-size:.82rem}
+.btn{width:100%;padding:.75rem;border:none;border-radius:9px;background:linear-gradient(135deg,var(--accent2),#ff6b6b);color:#fff;font-size:.95rem;cursor:pointer;font-weight:700;transition:transform .1s,box-shadow .2s;box-shadow:0 3px 12px rgba(233,69,96,.25)}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn-sec{background:linear-gradient(135deg,var(--card2),var(--card));box-shadow:0 3px 12px rgba(0,0,0,.1);margin-top:.5rem;color:var(--text);border:1px solid var(--border)}
+.result{background:linear-gradient(135deg,rgba(0,212,255,.04),rgba(124,58,237,.04));border:1px solid var(--border);border-radius:10px;padding:1rem;margin-top:1rem}
+.result h3{color:var(--accent);margin-bottom:.5rem;font-size:.9rem;font-weight:600}
+.result p{margin:.3rem 0;font-size:.9rem}
+.big{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent2),#ff6b6b);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+table{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:.8rem}
+th,td{padding:.5rem .4rem;text-align:left;border-bottom:1px solid var(--border)}
+th{color:var(--accent);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px}
+tr:hover td{background:rgba(0,212,255,.02)}
+.actions{display:flex;gap:.1rem}
+.act{background:none;border:none;cursor:pointer;padding:.2rem .4rem;font-size:.8rem;border-radius:4px;transition:background .2s}
+.act:hover{background:rgba(255,255,255,.08)}
+.empty{text-align:center;color:var(--muted);padding:1.5rem;font-size:.85rem}
+.reset-row{text-align:center;margin-top:1rem}
+.reset-row button{width:auto;padding:.4rem 1rem;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:7px;color:var(--muted);cursor:pointer;font-size:.78rem;transition:all .2s}
+.reset-row button:hover{border-color:var(--accent2);color:var(--accent2)}
+.breakdown{font-size:.82rem;margin-top:.6rem;color:var(--muted);line-height:1.7}
+.breakdown span{color:var(--text);font-weight:500}
+.tariff-row{display:flex;gap:.5rem;align-items:center;margin-bottom:.4rem;padding:.25rem .4rem;border-radius:7px;background:rgba(0,0,0,.08)}
+.tariff-row input{margin-bottom:0;flex:1;padding:.4rem .6rem;font-size:.85rem}
+.tariff-row span{font-size:.75rem;color:var(--muted);white-space:nowrap;min-width:80px}
+.tariff-row span:last-child{min-width:auto}
+.note{font-size:.78rem;color:var(--muted);margin:.6rem 0;font-style:italic}
+details{background:rgba(0,212,255,.03);border:1px solid var(--border);border-radius:9px;padding:.8rem;margin-bottom:1rem}
+details summary{color:var(--accent);cursor:pointer;font-weight:600;font-size:.85rem}
+details ul{margin-top:.5rem;padding-left:1.1rem;color:var(--muted);line-height:1.7;font-size:.82rem}
+details strong{color:var(--text)}
+details code{color:var(--accent);background:rgba(0,212,255,.08);padding:.1rem .3rem;border-radius:3px}
+.view-tariffs{background:none;border:1px solid rgba(0,212,255,.3);color:var(--accent);cursor:pointer;padding:.35rem .7rem;font-size:.78rem;border-radius:6px;margin-top:.5rem;transition:all .2s}
+.view-tariffs:hover{background:rgba(0,212,255,.08)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(3px)}
+.modal-content{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.5rem;max-width:550px;width:92%;max-height:85vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.4)}
+.modal-content h3{color:var(--accent);margin-bottom:.8rem;font-size:1rem}
+.modal-close{float:right;background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer}
+.modal-close:hover{color:var(--accent2)}
+.modal-content img{max-width:100%;border-radius:8px;margin-top:.6rem;border:1px solid var(--border)}
+.updated{font-size:.68rem;color:var(--muted);font-style:italic}
+.alert-box{background:rgba(233,69,96,.1);border:1px solid rgba(233,69,96,.3);border-radius:9px;padding:.8rem;margin-top:.8rem;font-size:.85rem;color:var(--accent2)}
+.alert-box strong{color:var(--text)}
+canvas{width:100%;max-height:200px;margin-top:.8rem}
+.equip-row{display:flex;gap:.4rem;align-items:center;margin-bottom:.4rem;padding:.3rem .4rem;border-radius:7px;background:rgba(0,0,0,.08);font-size:.82rem}
+.equip-row span{flex:1}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-top:.8rem}
+.compare-card{background:rgba(0,0,0,.1);border-radius:9px;padding:.8rem;text-align:center}
+.compare-card .val{font-size:1.3rem;font-weight:700;color:var(--accent)}
+.compare-card .lbl{font-size:.75rem;color:var(--muted)}
+.badge{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-size:.7rem;font-weight:600}
+.badge-up{background:rgba(233,69,96,.15);color:var(--accent2)}
+.badge-down{background:rgba(0,212,255,.15);color:var(--accent)}
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);padding:.7rem 1.4rem;border-radius:10px;font-size:.88rem;font-weight:500;z-index:200;animation:toastIn .3s ease,toastOut .3s ease 2.7s forwards;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.toast-success{background:linear-gradient(135deg,#10b981,#059669);color:#fff}
+.toast-error{background:linear-gradient(135deg,var(--accent2),#ff4444);color:#fff}
+.toast-warn{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes toastOut{from{opacity:1}to{opacity:0}}
+</style>
+</head>
+<body>
+<h1>⚡ Consumo Eléctrico</h1>
+<p class="subtitle">Tarifas residenciales UNE • Cuba</p>
+
+<div class="top-bar">
+<select id="meterSelect" onchange="switchMeter()"></select>
+<button onclick="addMeter()">+ Metro</button>
+<button onclick="toggleTheme()">🌓</button>
+<button onclick="exportData()">📥</button>
+<label style="margin:0;font-size:.8rem;cursor:pointer"><input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">📤</label>
+</div>
+
+<div class="tabs">
+<button id="tabCalc" onclick="showTab('calc')">🧮 Calc</button>
+<button id="tabReg" onclick="showTab('reg')">📊 Registro</button>
+<button id="tabChart" onclick="showTab('chart')">📈 Gráfico</button>
+<button id="tabEquip" onclick="showTab('equip')">🔌 Equipos</button>
+<button id="tabTar" onclick="showTab('tar')">⚙️ Config</button>
+</div>
+
+<div class="card" id="panelCalc">
+<label>Consumo total del mes (kWh)</label>
+<input type="number" id="kwh" placeholder="Ej: 350">
+<button class="btn" onclick="calculate()">Calcular Factura</button>
+<div id="calcResult"></div>
+</div>
+
+<div class="card" id="panelReg">
+<details>
+<summary>💡 ¿Cómo leer el metro contador?</summary>
+<ul>
+<li>Lectura de <strong>izquierda a derecha</strong>.</li>
+<li>Último número en <strong style="color:var(--accent2)">rojo</strong> o tras coma → se ignora.</li>
+<li>Ej: <code>0 3 4 2 <span style="color:var(--accent2)">1</span></code> → <strong>0342 kWh</strong></li>
+</ul>
+</details>
+<label>Lectura del metro contador (kWh)</label>
+<input type="number" id="reading" placeholder="Ej: 12540">
+<label>Fecha</label>
+<input type="date" id="date">
+<label>Hora (opcional)</label>
+<input type="time" id="time">
+<label>📷 Foto evidencia</label>
+<input type="file" id="photo" accept="image/*" capture="environment">
+<button class="btn" onclick="addReading()">Registrar Lectura</button>
+<div id="regResult"></div>
+<div id="alertBox"></div>
+<h3 style="color:var(--accent);margin:1.2rem 0 .6rem;font-size:.9rem">📅 Historial</h3>
+<select id="monthSelect" onchange="renderHistory()"></select>
+<div id="history"></div>
+<div class="reset-row"><button onclick="resetMonth()">🗑 Reiniciar mes</button></div>
+</div>
+
+<div class="card" id="panelChart">
+<h3 style="color:var(--accent);margin-bottom:.5rem;font-size:.95rem">📈 Consumo Diario</h3>
+<select id="chartMonth" onchange="renderChart()"></select>
+<canvas id="chartCanvas" height="200"></canvas>
+<div id="comparison"></div>
+<div id="costPerDay"></div>
+</div>
+
+<div class="card" id="panelEquip">
+<h3 style="color:var(--accent);margin-bottom:.5rem;font-size:.95rem">🔌 Equipos Eléctricos</h3>
+<p class="note">Registra tus equipos para estimar su consumo mensual.</p>
+<label>Nombre del equipo</label>
+<input type="text" id="equipName" placeholder="Ej: Refrigerador">
+<label>Potencia (Watts)</label>
+<input type="number" id="equipWatts" placeholder="Ej: 150">
+<label>Horas de uso diario</label>
+<input type="number" id="equipHours" placeholder="Ej: 24" step="0.5">
+<button class="btn" onclick="addEquipment()">Agregar Equipo</button>
+<div id="equipList"></div>
+<div id="equipTotal"></div>
+</div>
+
+<div class="card" id="panelTar">
+<h3 style="color:var(--accent);margin-bottom:.5rem;font-size:.95rem">⚙️ Configuración</h3>
+
+<label style="margin-top:.8rem;font-weight:600;color:var(--accent);font-size:.85rem">Metros Contadores</label>
+<p class="note">Administra tus metros contadores (renombrar, agregar, eliminar).</p>
+<div id="metersEditor"></div>
+<button class="btn btn-sec" onclick="addMeterFromConfig()">+ Agregar Metro</button>
+
+<label style="margin-top:1.2rem;font-weight:600;color:var(--accent);font-size:.85rem">Ciclo de facturación</label>
+<label>Día de corte del mes</label>
+<input type="number" id="billCycleDay" min="1" max="28" placeholder="Ej: 1">
+
+<label style="margin-top:.8rem;font-weight:600;color:var(--accent);font-size:.85rem">Alertas</label>
+<label>Umbral de alerta (kWh)</label>
+<input type="number" id="alertThreshold" placeholder="Ej: 450">
+
+<label style="margin-top:1rem;font-weight:600;color:var(--accent);font-size:.85rem">Tarifas por rango</label>
+<div id="tariffEditor"></div>
+<label style="margin-top:.8rem">Recargo exceso >500 kWh (%)</label>
+<input type="number" id="surcharge" value="25" step="1">
+<button class="btn" onclick="saveConfig()">💾 Guardar Configuración</button>
+<button class="btn btn-sec" onclick="resetTariffs()">↺ Restaurar Tarifas por Defecto</button>
+</div>
+
+<div id="modal"></div>
+
+<script>
+// === DB (IndexedDB con fallback localStorage) ===
+const DB_NAME='une_electrico',DB_VER=1;
+let db=null;
+
+function openDB(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open(DB_NAME,DB_VER);
+    req.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains('readings'))d.createObjectStore('readings',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('equipment'))d.createObjectStore('equipment',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('config'))d.createObjectStore('config',{keyPath:'key'});
+    };
+    req.onsuccess=e=>{db=e.target.result;res(db);};
+    req.onerror=()=>rej(req.error);
+  });
+}
+
+function dbGetAll(store){
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(store,'readonly'),s=tx.objectStore(store),r=s.getAll();
+    r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);
+  });
+}
+function dbPut(store,data){
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(store,'readwrite'),s=tx.objectStore(store),r=s.put(data);
+    r.onsuccess=()=>res();r.onerror=()=>rej(r.error);
+  });
+}
+function dbDelete(store,id){
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(store,'readwrite'),s=tx.objectStore(store),r=s.delete(id);
+    r.onsuccess=()=>res();r.onerror=()=>rej(r.error);
+  });
+}
+function dbClear(store){
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(store,'readwrite'),s=tx.objectStore(store),r=s.clear();
+    r.onsuccess=()=>res();r.onerror=()=>rej(r.error);
+  });
+}
+
+// === CONFIG ===
+const DEFAULT_RANGES=[[100,0.33],[50,1.07],[50,1.43],[50,2.46],[50,3.00],[50,4.00],[50,5.00],[50,6.00],[50,7.00],[100,9.20],[100,9.45],[300,9.85],[800,10.80],[800,11.80],[800,12.90],[800,13.95],[800,15.00],[Infinity,20.00]];
+const DEFAULT_SURCHARGE=25;
+const LABELS=['0–100','101–150','151–200','201–250','251–300','301–350','351–400','401–450','451–500','501–600','601–700','701–1000','1001–1800','1801–2600','2601–3400','3401–4200','4201–5000','>5000'];
+
+let config={tariffs:{ranges:DEFAULT_RANGES,surcharge:DEFAULT_SURCHARGE},alertThreshold:450,billCycleDay:1,meters:['Metro 1'],activeMeter:0,theme:'dark'};
+let readings=[],equipment=[];
+
+async function loadConfig(){
+  try{
+    const all=await dbGetAll('config');
+    const c=all.find(x=>x.key==='main');
+    if(c)config={...config,...c.value};
+  }catch(e){}
+  // Migrate from localStorage
+  const old=localStorage.getItem('une_readings');
+  if(old){
+    const arr=JSON.parse(old);
+    for(const r of arr){
+      if(!r.id)r.id=Date.now()+Math.random()*1000|0;
+      if(!r.meter)r.meter=0;
+      if(!r.createdAt)r.createdAt=new Date().toISOString();
+      if(!r.updatedAt)r.updatedAt=r.createdAt;
+      await dbPut('readings',r);
+    }
+    localStorage.removeItem('une_readings');
+  }
+  const oldT=localStorage.getItem('une_tariffs');
+  if(oldT){config.tariffs=JSON.parse(oldT);localStorage.removeItem('une_tariffs');}
+}
+
+async function saveConfig(){
+  if(!await confirmDialog('¿Guardar los cambios de configuración?',{type:'info',confirmText:'Guardar'}))return;
+  const ranges=config.tariffs.ranges.map((r,i)=>[r[0],parseFloat(document.getElementById('rate_'+i).value)||r[1]]);
+  config.tariffs={ranges,surcharge:parseFloat(document.getElementById('surcharge').value)||25};
+  config.alertThreshold=parseFloat(document.getElementById('alertThreshold').value)||450;
+  config.billCycleDay=parseInt(document.getElementById('billCycleDay').value)||1;
+  config.meters=config.meters.map((_,i)=>{const el=document.getElementById('meter_'+i);return el?el.value.trim()||`Metro ${i+1}`:_;});
+  await dbPut('config',{key:'main',value:config});
+  renderMeters();
+  toast('Configuración guardada');
+}
+
+async function loadReadings(){
+  readings=(await dbGetAll('readings')).filter(r=>r.meter===config.activeMeter);
+  readings.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+}
+async function loadEquipment(){equipment=await dbGetAll('equipment');}
+
+// === TARIFFS ===
+function calcBill(kwh,tariffs){
+  tariffs=tariffs||config.tariffs;
+  const ranges=tariffs.ranges,surcharge=tariffs.surcharge/100;
+  if(kwh<=0)return{total:0,breakdown:[]};
+  let breakdown=[];
+  if(kwh<=500){
+    let cost=0,rem=kwh;
+    for(const[size,rate]of ranges){if(rem<=0)break;const used=Math.min(rem,size);cost+=used*rate;breakdown.push({used,rate,subtotal:used*rate});rem-=used;}
+    return{total:cost,breakdown};
+  }
+  let base=0,rem=500;
+  for(const[size,rate]of ranges){if(rem<=0)break;const used=Math.min(rem,size);base+=used*rate;breakdown.push({used,rate,subtotal:used*rate});rem-=used;}
+  let acc=0,excRate=ranges[ranges.length-1][1];
+  for(const[size,rate]of ranges){acc+=size;if(kwh<=acc){excRate=rate;break;}}
+  const excess=kwh-500,excCost=excess*excRate*(1+surcharge);
+  breakdown.push({used:excess,rate:excRate,recargo:true,surcharge:tariffs.surcharge,subtotal:excCost});
+  return{total:base+excCost,breakdown};
+}
+
+// === PHOTO COMPRESSION ===
+function compressPhoto(file,maxW=800){
+  return new Promise(res=>{
+    if(!file){res(null);return;}
+    const img=new Image(),url=URL.createObjectURL(file);
+    img.onload=()=>{
+      const scale=Math.min(1,maxW/img.width);
+      const c=document.createElement('canvas');
+      c.width=img.width*scale;c.height=img.height*scale;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg',0.7));
+    };
+    img.src=url;
+  });
+}
+
+// === METERS ===
+function renderMeters(){
+  const sel=document.getElementById('meterSelect');
+  sel.innerHTML=config.meters.map((m,i)=>`<option value="${i}"${i===config.activeMeter?' selected':''}>${m}</option>`).join('');
+}
+async function switchMeter(){
+  config.activeMeter=parseInt(document.getElementById('meterSelect').value);
+  await dbPut('config',{key:'main',value:config});
+  await loadReadings();renderAll();
+}
+async function addMeter(){
+  const name=prompt('Nombre del metro:');
+  if(!name)return;
+  config.meters.push(name);
+  config.activeMeter=config.meters.length-1;
+  await dbPut('config',{key:'main',value:config});
+  renderMeters();await loadReadings();renderAll();
+}
+
+function renderMetersEditor(){
+  let html='';
+  config.meters.forEach((m,i)=>{
+    html+=`<div class="tariff-row"><span style="min-width:20px;color:var(--accent)">#${i+1}</span><input type="text" id="meter_${i}" value="${m}" style="margin-bottom:0;flex:1">${config.meters.length>1?`<button class="act" onclick="deleteMeter(${i})" title="Eliminar">✕</button>`:''}  </div>`;
+  });
+  document.getElementById('metersEditor').innerHTML=html;
+}
+
+async function addMeterFromConfig(){
+  const name=prompt('Nombre del nuevo metro:');
+  if(!name)return;
+  config.meters.push(name);
+  await dbPut('config',{key:'main',value:config});
+  renderMetersEditor();renderMeters();
+}
+
+async function deleteMeter(idx){
+  if(config.meters.length<=1)return toast('Debe haber al menos un metro','warn');
+  if(!await confirmDialog(`¿Eliminar "${config.meters[idx]}"? Los registros asociados no se eliminarán.`,{type:'danger',confirmText:'Eliminar'}))return;
+  config.meters.splice(idx,1);
+  if(config.activeMeter>=config.meters.length)config.activeMeter=0;
+  await dbPut('config',{key:'main',value:config});
+  renderMetersEditor();renderMeters();await loadReadings();renderAll();
+}
+
+async function saveMetersNames(){
+  config.meters=config.meters.map((_,i)=>document.getElementById('meter_'+i).value.trim()||`Metro ${i+1}`);
+  await dbPut('config',{key:'main',value:config});
+  renderMeters();
+}
+
+// === CALCULATOR ===
+function calculate(){
+  const kwh=parseFloat(document.getElementById('kwh').value);
+  if(!kwh||kwh<0)return toast('Ingresa un consumo válido','error');
+  const{total,breakdown}=calcBill(kwh);
+  let bd=breakdown.map(b=>`${b.used} kWh × $${b.rate.toFixed(2)}${b.recargo?` (+${b.surcharge}%)`:''} = <span>$${b.subtotal.toFixed(2)}</span>`).join('<br>');
+  document.getElementById('calcResult').innerHTML=`<div class="result"><h3>Resultado</h3><p>Consumo: <strong>${kwh} kWh</strong></p><p class="big">${total.toFixed(2)} CUP</p><div class="breakdown">${bd}</div></div>`;
+}
+
+// === READINGS ===
+async function addReading(){
+  const reading=parseFloat(document.getElementById('reading').value),date=document.getElementById('date').value,time=document.getElementById('time').value||'';
+  if(!reading||!date)return toast('Completa lectura y fecha','error');
+  // Validate: reading should be >= last
+  if(readings.length>0){
+    const last=readings[readings.length-1];
+    if(reading<last.reading&&!await confirmDialog(`La lectura ${reading} es menor que la anterior (${last.reading}). ¿Estás seguro?`,{type:'warn',confirmText:'Sí, registrar'}))return;
+  }
+  const photo=await compressPhoto(document.getElementById('photo').files[0]);
+  const now=new Date().toISOString();
+  const entry={id:Date.now(),reading,date,time,photo,meter:config.activeMeter,tariffs:{...config.tariffs},createdAt:now,updatedAt:now};
+  await dbPut('readings',entry);
+  readings.push(entry);
+  readings.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+  document.getElementById('reading').value='';
+  document.getElementById('photo').value='';
+  renderAll();checkAlerts();
+}
+
+function getMonthKey(date){
+  // Adjust for billing cycle
+  const d=new Date(date+'T12:00:00');
+  const day=d.getDate();
+  if(day<config.billCycleDay){d.setMonth(d.getMonth()-1);}
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+
+function getMonthReadings(month){
+  return readings.filter(r=>getMonthKey(r.date)===month);
+}
+
+function getMonths(){
+  return[...new Set(readings.map(r=>getMonthKey(r.date)))].sort().reverse();
+}
+
+function getMonthTariffs(month){
+  const md=getMonthReadings(month),last=md[md.length-1];
+  return last&&last.tariffs?last.tariffs:config.tariffs;
+}
+
+function checkAlerts(){
+  const months=getMonths();if(!months.length)return;
+  const md=getMonthReadings(months[0]);
+  if(md.length<2){document.getElementById('alertBox').innerHTML='';return;}
+  const consumed=md[md.length-1].reading-md[0].reading;
+  let html='';
+  if(consumed>=config.alertThreshold){
+    html=`<div class="alert-box">⚠️ <strong>Alerta:</strong> Consumo actual ${consumed} kWh alcanzó el umbral de ${config.alertThreshold} kWh.</div>`;
+  }
+  if(consumed>400&&consumed<500){
+    html+=`<div class="alert-box" style="border-color:rgba(255,165,0,.3);color:orange">⚡ Te acercas a los 500 kWh. Después se aplica recargo del ${config.tariffs.surcharge}%.</div>`;
+  }
+  // Estimate end of month
+  const days=md.length>1?((new Date(md[md.length-1].date)-new Date(md[0].date))/86400000):1;
+  if(days>0){
+    const avgPerDay=consumed/days;
+    const daysInMonth=30;
+    const daysLeft=Math.max(0,daysInMonth-days);
+    const estimated=consumed+avgPerDay*daysLeft;
+    const{total}=calcBill(Math.round(estimated),getMonthTariffs(months[0]));
+    html+=`<div class="result"><h3>📊 Estimación fin de mes</h3><p>Promedio diario: <strong>${avgPerDay.toFixed(1)} kWh/día</strong></p><p>Consumo estimado: <strong>${Math.round(estimated)} kWh</strong></p><p>Factura estimada: <span class="big">${total.toFixed(2)} CUP</span></p></div>`;
+  }
+  document.getElementById('alertBox').innerHTML=html;
+}
+
+function renderRegResult(){
+  const months=getMonths();if(!months.length)return;
+  const md=getMonthReadings(months[0]);
+  if(md.length<2){document.getElementById('regResult').innerHTML='<div class="result"><p>Registra al menos 2 lecturas para calcular.</p></div>';return;}
+  const consumed=md[md.length-1].reading-md[0].reading;
+  const{total}=calcBill(consumed,getMonthTariffs(months[0]));
+  document.getElementById('regResult').innerHTML=`<div class="result"><h3>Resumen del ciclo actual</h3><p>Consumo: <strong>${consumed} kWh</strong></p><p class="big">${total.toFixed(2)} CUP</p></div>`;
+}
+
+function renderHistory(){
+  const sel=document.getElementById('monthSelect'),months=getMonths(),cur=sel.value||months[0]||'';
+  sel.innerHTML=months.map(m=>`<option value="${m}"${m===cur?' selected':''}>${m}</option>`).join('')||'<option>Sin datos</option>';
+  const month=sel.value,data=getMonthReadings(month);
+  if(!data.length){document.getElementById('history').innerHTML='<p class="empty">No hay registros</p>';return;}
+  let html='<table><tr><th>Fecha</th><th>Hora</th><th>Lectura</th><th>Consumo</th><th></th></tr>';
+  data.forEach((d,i)=>{
+    const daily=i>0?(d.reading-data[i-1].reading):'-';
+    const hasPhoto=d.photo?'📷':'';
+    const upd=d.updatedAt&&d.updatedAt!==d.createdAt?`<br><span class="updated">✏️${d.updatedAt.slice(0,10)}</span>`:'';
+    html+=`<tr><td>${d.date}${upd}</td><td>${d.time||'–'}</td><td>${d.reading}</td><td>${daily==='-'?'–':daily+' kWh'}</td><td><div class="actions">${hasPhoto?`<button class="act" onclick="viewPhoto(${d.id})">📷</button>`:''}<button class="act" onclick="editReading(${d.id})">✏️</button><button class="act" onclick="delReading(${d.id})">✕</button></div></td></tr>`;
+  });
+  html+='</table>';
+  const total=data.length>1?data[data.length-1].reading-data[0].reading:0;
+  if(total>0){
+    const{total:bill}=calcBill(total,getMonthTariffs(month));
+    html+=`<div class="result"><p>Total: <strong>${total} kWh</strong></p><p class="big">${bill.toFixed(2)} CUP</p><button class="view-tariffs" onclick="showUsedTariffs('${month}')">📋 Tarifas aplicadas</button></div>`;
+  }
+  document.getElementById('history').innerHTML=html;
+}
+
+async function delReading(id){
+  if(!await confirmDialog('¿Eliminar este registro de lectura?',{type:'danger',confirmText:'Eliminar'}))return;
+  await dbDelete('readings',id);
+  readings=readings.filter(r=>r.id!==id);
+  renderAll();
+}
+
+function viewPhoto(id){
+  const d=readings.find(r=>r.id===id);
+  if(!d||!d.photo)return toast('No hay foto para este registro','warn');
+  document.getElementById('modal').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modal-content"><button class="modal-close" onclick="closeModal()">&times;</button><h3>📷 Evidencia — ${d.date} ${d.time||''}</h3><p>Lectura: <strong>${d.reading} kWh</strong></p><img src="${d.photo}" alt="Foto"></div></div>`;
+}
+
+function editReading(id){
+  const d=readings.find(r=>r.id===id);
+  if(!d)return;
+  document.getElementById('modal').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modal-content">
+    <button class="modal-close" onclick="closeModal()">&times;</button><h3>✏️ Editar Registro</h3>
+    <label>Lectura (kWh)</label><input type="number" id="editReading" value="${d.reading}">
+    <label>Fecha</label><input type="date" id="editDate" value="${d.date}">
+    <label>Hora</label><input type="time" id="editTime" value="${d.time||''}">
+    <label>📷 Cambiar foto</label><input type="file" id="editPhoto" accept="image/*">
+    ${d.photo?`<img src="${d.photo}" style="max-width:100%;max-height:120px;border-radius:8px;margin-top:.4rem">`:''}
+    <p style="margin-top:.8rem;font-size:.72rem;color:var(--muted)">Creado: ${(d.createdAt||'').slice(0,16).replace('T',' ')}<br>Actualizado: ${(d.updatedAt||'').slice(0,16).replace('T',' ')}</p>
+    <button class="btn" style="margin-top:.8rem" onclick="saveEdit(${id})">💾 Guardar</button></div></div>`;
+}
+
+async function saveEdit(id){
+  if(!await confirmDialog('¿Guardar los cambios en este registro?',{type:'info',confirmText:'Guardar'}))return;
+  const idx=readings.findIndex(r=>r.id===id);
+  if(idx===-1)return;
+  const newReading=parseFloat(document.getElementById('editReading').value);
+  const newDate=document.getElementById('editDate').value;
+  const newTime=document.getElementById('editTime').value||'';
+  if(!newReading||!newDate)return toast('Completa lectura y fecha','error');
+  const file=document.getElementById('editPhoto').files[0];
+  const newPhoto=file?await compressPhoto(file):readings[idx].photo;
+  readings[idx].reading=newReading;
+  readings[idx].date=newDate;
+  readings[idx].time=newTime;
+  readings[idx].photo=newPhoto;
+  readings[idx].updatedAt=new Date().toISOString();
+  await dbPut('readings',readings[idx]);
+  readings.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+  closeModal();renderAll();
+}
+
+// === CHART ===
+function renderChart(){
+  const sel=document.getElementById('chartMonth'),months=getMonths(),cur=sel.value||months[0]||'';
+  sel.innerHTML=months.map(m=>`<option value="${m}"${m===cur?' selected':''}>${m}</option>`).join('')||'<option>Sin datos</option>';
+  const month=sel.value,data=getMonthReadings(month);
+  const canvas=document.getElementById('chartCanvas'),ctx=canvas.getContext('2d');
+  canvas.width=canvas.offsetWidth*2;canvas.height=400;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(data.length<2){ctx.fillStyle=getComputedStyle(document.body).getPropertyValue('--muted');ctx.font='14px sans-serif';ctx.fillText('Datos insuficientes',canvas.width/2-60,200);return;}
+  const dailyData=[];
+  for(let i=1;i<data.length;i++)dailyData.push({label:data[i].date.slice(5),value:data[i].reading-data[i-1].reading});
+  const max=Math.max(...dailyData.map(d=>d.value),1);
+  const barW=Math.min(40,(canvas.width-80)/dailyData.length-4);
+  const chartH=canvas.height-60;
+  const accent=getComputedStyle(document.body).getPropertyValue('--accent').trim();
+  const accent2=getComputedStyle(document.body).getPropertyValue('--accent2').trim();
+  const muted=getComputedStyle(document.body).getPropertyValue('--muted').trim();
+  dailyData.forEach((d,i)=>{
+    const h=(d.value/max)*chartH;
+    const x=40+i*(barW+4);
+    const gradient=ctx.createLinearGradient(x,canvas.height-30-h,x,canvas.height-30);
+    gradient.addColorStop(0,accent);gradient.addColorStop(1,accent2);
+    ctx.fillStyle=gradient;
+    ctx.beginPath();ctx.roundRect(x,canvas.height-30-h,barW,h,4);ctx.fill();
+    ctx.fillStyle=muted;ctx.font='10px sans-serif';
+    ctx.save();ctx.translate(x+barW/2,canvas.height-5);ctx.rotate(-0.5);ctx.fillText(d.label,0,0);ctx.restore();
+    ctx.fillStyle=accent;ctx.font='10px sans-serif';ctx.fillText(d.value,x,canvas.height-35-h);
+  });
+  // Comparison with previous month
+  renderComparison(month);
+  renderCostPerDay(month);
+}
+
+function renderComparison(month){
+  const months=getMonths();
+  const idx=months.indexOf(month);
+  if(idx===-1||idx>=months.length-1){document.getElementById('comparison').innerHTML='';return;}
+  const prev=months[idx+1];
+  const curData=getMonthReadings(month),prevData=getMonthReadings(prev);
+  if(curData.length<2||prevData.length<2){document.getElementById('comparison').innerHTML='';return;}
+  const curTotal=curData[curData.length-1].reading-curData[0].reading;
+  const prevTotal=prevData[prevData.length-1].reading-prevData[0].reading;
+  const diff=curTotal-prevTotal;
+  const pct=prevTotal>0?((diff/prevTotal)*100).toFixed(1):0;
+  const badge=diff>0?`<span class="badge badge-up">↑ ${pct}%</span>`:`<span class="badge badge-down">↓ ${Math.abs(pct)}%</span>`;
+  document.getElementById('comparison').innerHTML=`<div class="compare"><div class="compare-card"><div class="val">${curTotal}</div><div class="lbl">kWh este mes</div></div><div class="compare-card"><div class="val">${prevTotal}</div><div class="lbl">kWh mes anterior</div></div></div><p style="text-align:center;margin-top:.5rem;font-size:.85rem">Diferencia: <strong>${diff>0?'+':''}${diff} kWh</strong> ${badge}</p>`;
+}
+
+function renderCostPerDay(month){
+  const data=getMonthReadings(month);
+  if(data.length<2){document.getElementById('costPerDay').innerHTML='';return;}
+  const total=data[data.length-1].reading-data[0].reading;
+  const days=(new Date(data[data.length-1].date)-new Date(data[0].date))/86400000;
+  if(days<=0){document.getElementById('costPerDay').innerHTML='';return;}
+  const kwhPerDay=total/days;
+  const{total:bill}=calcBill(total,getMonthTariffs(month));
+  const costDay=bill/days;
+  document.getElementById('costPerDay').innerHTML=`<div class="result" style="margin-top:.8rem"><h3>💰 Costo por día</h3><p>Consumo promedio: <strong>${kwhPerDay.toFixed(1)} kWh/día</strong></p><p>Costo promedio: <strong>${costDay.toFixed(2)} CUP/día</strong></p></div>`;
+}
+
+// === EQUIPMENT ===
+async function addEquipment(){
+  const name=document.getElementById('equipName').value.trim();
+  const watts=parseFloat(document.getElementById('equipWatts').value);
+  const hours=parseFloat(document.getElementById('equipHours').value);
+  if(!name||!watts||!hours)return toast('Completa todos los campos','error');
+  const entry={id:Date.now(),name,watts,hours};
+  await dbPut('equipment',entry);
+  equipment.push(entry);
+  document.getElementById('equipName').value='';
+  document.getElementById('equipWatts').value='';
+  document.getElementById('equipHours').value='';
+  renderEquipment();
+}
+
+async function delEquipment(id){
+  if(!await confirmDialog('¿Eliminar este equipo?',{type:'danger',confirmText:'Eliminar'}))return;
+  await dbDelete('equipment',id);
+  equipment=equipment.filter(e=>e.id!==id);
+  renderEquipment();
+}
+
+function editEquipment(id){
+  const e=equipment.find(x=>x.id===id);
+  if(!e)return;
+  document.getElementById('modal').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modal-content">
+    <button class="modal-close" onclick="closeModal()">&times;</button><h3>✏️ Editar Equipo</h3>
+    <label>Nombre</label><input type="text" id="editEquipName" value="${e.name}">
+    <label>Potencia (Watts)</label><input type="number" id="editEquipWatts" value="${e.watts}">
+    <label>Horas de uso diario</label><input type="number" id="editEquipHours" value="${e.hours}" step="0.5">
+    <button class="btn" style="margin-top:.5rem" onclick="saveEquipEdit(${id})">💾 Guardar</button></div></div>`;
+}
+
+async function saveEquipEdit(id){
+  const name=document.getElementById('editEquipName').value.trim();
+  const watts=parseFloat(document.getElementById('editEquipWatts').value);
+  const hours=parseFloat(document.getElementById('editEquipHours').value);
+  if(!name||!watts||!hours)return toast('Completa todos los campos','error');
+  if(!await confirmDialog('¿Guardar los cambios en este equipo?',{type:'info',confirmText:'Guardar'}))return;
+  const idx=equipment.findIndex(x=>x.id===id);
+  if(idx===-1)return;
+  equipment[idx]={...equipment[idx],name,watts,hours};
+  await dbPut('equipment',equipment[idx]);
+  closeModal();renderEquipment();
+}
+
+function renderEquipment(){
+  if(!equipment.length){document.getElementById('equipList').innerHTML='<p class="empty">No hay equipos registrados</p>';document.getElementById('equipTotal').innerHTML='';return;}
+  let html='<table><tr><th>Equipo</th><th>W</th><th>Hrs/día</th><th>kWh/mes</th><th></th></tr>';
+  let totalKwh=0;
+  equipment.forEach(e=>{
+    const monthly=(e.watts*e.hours*30)/1000;
+    totalKwh+=monthly;
+    html+=`<tr><td>${e.name}</td><td>${e.watts}</td><td>${e.hours}</td><td>${monthly.toFixed(1)}</td><td><div class="actions"><button class="act" onclick="editEquipment(${e.id})">✏️</button><button class="act" onclick="delEquipment(${e.id})">✕</button></div></td></tr>`;
+  });
+  html+='</table>';
+  document.getElementById('equipList').innerHTML=html;
+  const{total}=calcBill(Math.round(totalKwh));
+  document.getElementById('equipTotal').innerHTML=`<div class="result"><h3>Estimación mensual por equipos</h3><p>Consumo total estimado: <strong>${totalKwh.toFixed(0)} kWh</strong></p><p>Factura estimada: <span class="big">${total.toFixed(2)} CUP</span></p></div>`;
+}
+
+// === CONFIG UI ===
+function renderTariffEditor(){
+  const t=config.tariffs;
+  document.getElementById('tariffEditor').innerHTML=t.ranges.map((r,i)=>`<div class="tariff-row"><span>${LABELS[i]}</span><input type="number" step="0.01" value="${r[1]}" id="rate_${i}"><span>CUP</span></div>`).join('');
+  document.getElementById('surcharge').value=t.surcharge;
+  document.getElementById('alertThreshold').value=config.alertThreshold;
+  document.getElementById('billCycleDay').value=config.billCycleDay;
+}
+
+async function resetTariffs(){
+  if(!await confirmDialog('¿Restaurar tarifas por defecto? Se perderán las tarifas actuales.',{type:'warn',confirmText:'Restaurar'}))return;
+  config.tariffs={ranges:DEFAULT_RANGES,surcharge:DEFAULT_SURCHARGE};
+  await dbPut('config',{key:'main',value:config});
+  renderTariffEditor();
+}
+
+function showUsedTariffs(month){
+  const t=getMonthTariffs(month);
+  let rows=t.ranges.map((r,i)=>`<tr><td>${LABELS[i]}</td><td>${r[1].toFixed(2)}</td></tr>`).join('');
+  document.getElementById('modal').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modal-content"><button class="modal-close" onclick="closeModal()">&times;</button><h3>Tarifas — ${month}</h3><table><tr><th>Rango</th><th>CUP/kWh</th></tr>${rows}</table><p style="margin-top:.8rem;color:var(--muted);font-size:.82rem">Recargo >500 kWh: <strong style="color:var(--text)">${t.surcharge}%</strong></p></div></div>`;
+}
+
+async function resetMonth(){
+  const month=document.getElementById('monthSelect').value;
+  if(!month||!await confirmDialog(`¿Eliminar todos los registros de ${month}?`,{type:'danger',confirmText:'Eliminar todo'}))return;
+  const toDelete=readings.filter(r=>getMonthKey(r.date)===month);
+  for(const r of toDelete)await dbDelete('readings',r.id);
+  readings=readings.filter(r=>getMonthKey(r.date)!==month);
+  renderAll();
+}
+
+// === THEME ===
+function toggleTheme(){
+  config.theme=config.theme==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',config.theme);
+  dbPut('config',{key:'main',value:config});
+}
+
+// === EXPORT/IMPORT ===
+async function exportData(){
+  const allReadings=await dbGetAll('readings');
+  const data=JSON.stringify({readings:allReadings,equipment,config},null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=`une-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();URL.revokeObjectURL(a.href);
+}
+
+async function importData(e){
+  const file=e.target.files[0];if(!file)return;
+  if(!await confirmDialog(`¿Importar datos desde "${file.name}"? Esto puede sobrescribir registros existentes.`,{type:'warn',confirmText:'Importar'})){e.target.value='';return;}
+  const text=await file.text();
+  try{
+    const data=JSON.parse(text);
+    if(data.readings){for(const r of data.readings)await dbPut('readings',r);}
+    if(data.equipment){for(const eq of data.equipment)await dbPut('equipment',eq);}
+    if(data.config){config={...config,...data.config};await dbPut('config',{key:'main',value:config});}
+    await loadReadings();await loadEquipment();
+    renderAll();toast('Datos importados correctamente');
+  }catch(err){toast('Error al importar: '+err.message,'error');}
+  e.target.value='';
+}
+
+// === TABS & RENDER ===
+function closeModal(){document.getElementById('modal').innerHTML='';}
+
+function toast(msg,type='success'){
+  const el=document.createElement('div');
+  el.className='toast toast-'+type;el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),3000);
+}
+
+function confirmDialog(msg,{confirmText='Confirmar',cancelText='Cancelar',type='warn'}={}){
+  return new Promise(res=>{
+    const colors={warn:'var(--accent2)',info:'var(--accent)',danger:'#ff4444'};
+    const icons={warn:'⚠️',info:'ℹ️',danger:'🗑️'};
+    document.getElementById('modal').innerHTML=`<div class="modal"><div class="modal-content" style="text-align:center;max-width:400px">
+      <p style="font-size:2rem;margin-bottom:.5rem">${icons[type]||icons.warn}</p>
+      <p style="font-size:.95rem;margin-bottom:1.2rem;line-height:1.5">${msg}</p>
+      <div style="display:flex;gap:.6rem">
+        <button class="btn btn-sec" style="flex:1" onclick="document.getElementById('modal').innerHTML='';(${res})(false)">
+          ${cancelText}
+        </button>
+        <button class="btn" style="flex:1;background:${colors[type]||colors.warn}" id="confirmBtn">
+          ${confirmText}
+        </button>
+      </div>
+    </div></div>`;
+    document.getElementById('confirmBtn').onclick=()=>{document.getElementById('modal').innerHTML='';res(true);};
+    document.querySelector('#modal .btn-sec').onclick=()=>{document.getElementById('modal').innerHTML='';res(false);};
+  });
+}
+
+function showTab(tab){
+  const tabs={calc:'Calc',reg:'Reg',chart:'Chart',equip:'Equip',tar:'Tar'};
+  Object.entries(tabs).forEach(([k,v])=>{
+    const p=document.getElementById('panel'+v);if(p)p.classList.toggle('visible',k===tab);
+    const b=document.getElementById('tab'+v);if(b)b.classList.toggle('active',k===tab);
+  });
+  if(tab==='tar'){renderTariffEditor();renderMetersEditor();}
+  if(tab==='chart')renderChart();
+  if(tab==='equip')renderEquipment();
+}
+
+function renderAll(){
+  renderRegResult();renderHistory();checkAlerts();
+}
+
+// === INIT ===
+async function init(){
+  await openDB();
+  await loadConfig();
+  document.documentElement.setAttribute('data-theme',config.theme);
+  renderMeters();
+  await loadReadings();
+  await loadEquipment();
+  document.getElementById('date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('time').value=new Date().toTimeString().slice(0,5);
+  showTab('calc');
+  renderAll();
+}
+init();
+
+// PWA
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
