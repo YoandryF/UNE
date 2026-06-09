@@ -277,7 +277,7 @@ async function loadReadings(){
   readings=(await dbGetAll('readings')).filter(r=>r.meter===config.activeMeter);
   readings.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
 }
-async function loadEquipment(){equipment=await dbGetAll('equipment');}
+async function loadEquipment(){equipment=(await dbGetAll('equipment')).filter(e=>(e.meter??0)===config.activeMeter);}
 
 // === TARIFFS ===
 function calcBill(kwh,tariffs){
@@ -584,7 +584,7 @@ async function addEquipment(){
   const watts=parseFloat(document.getElementById('equipWatts').value);
   const hours=parseFloat(document.getElementById('equipHours').value);
   if(!name||!watts||!hours)return toast('Completa todos los campos','error');
-  const entry={id:Date.now(),name,watts,hours};
+  const entry={id:Date.now(),name,watts,hours,meter:config.activeMeter};
   await dbPut('equipment',entry);
   equipment.push(entry);
   document.getElementById('equipName').value='';
