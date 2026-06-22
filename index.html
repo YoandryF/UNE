@@ -83,6 +83,19 @@ canvas{width:100%;max-height:200px;margin-top:.8rem}
 .toast-warn{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff}
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 @keyframes toastOut{from{opacity:1}to{opacity:0}}
+.thermo{margin-top:1rem;padding:.8rem;background:rgba(0,0,0,.1);border-radius:10px;border:1px solid var(--border)}
+.thermo-label{display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-bottom:.3rem}
+.thermo-bar{height:18px;border-radius:9px;background:var(--card2);overflow:hidden;position:relative}
+.thermo-fill{height:100%;border-radius:9px;transition:width .5s ease;background:linear-gradient(90deg,#10b981,#f59e0b,#ef4444)}
+.thermo-fill.warn{animation:pulse 2s ease-in-out 1}
+.thermo-pct{position:absolute;right:8px;top:1px;font-size:.7rem;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+.blackout-toggle{display:flex;gap:.6rem;align-items:center;margin:.8rem 0}
+.blackout-toggle button{flex:1;padding:.8rem;border:none;border-radius:9px;font-size:.9rem;font-weight:700;cursor:pointer;transition:all .2s}
+.blackout-on{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 3px 12px rgba(239,68,68,.3)}
+.blackout-off{background:linear-gradient(135deg,#10b981,#059669);color:#fff;box-shadow:0 3px 12px rgba(16,185,129,.3)}
+.blackout-stats{font-size:.82rem;color:var(--muted);margin-top:.5rem}
+.blackout-stats strong{color:var(--text)}
 </style>
 </head>
 <body>
@@ -106,9 +119,20 @@ canvas{width:100%;max-height:200px;margin-top:.8rem}
 </div>
 
 <div class="card" id="panelCalc">
+<div style="display:flex;gap:.5rem;margin-bottom:.8rem">
+<button class="btn btn-sec" style="margin:0;flex:1;padding:.5rem" id="modeNormal" onclick="setCalcMode('normal')">kWh → CUP</button>
+<button class="btn btn-sec" style="margin:0;flex:1;padding:.5rem" id="modeInverse" onclick="setCalcMode('inverse')">CUP → kWh</button>
+</div>
+<div id="calcNormal">
 <label>Consumo total del mes (kWh)</label>
 <input type="number" id="kwh" placeholder="Ej: 350">
 <button class="btn" onclick="calculate()">Calcular Factura</button>
+</div>
+<div id="calcInverse" style="display:none">
+<label>Presupuesto disponible (CUP)</label>
+<input type="number" id="budget" placeholder="Ej: 1500">
+<button class="btn" onclick="calcInverse()">¿Cuánto puedo consumir?</button>
+</div>
 <div id="calcResult"></div>
 </div>
 
@@ -136,6 +160,9 @@ canvas{width:100%;max-height:200px;margin-top:.8rem}
 <select id="monthSelect" onchange="renderHistory()"></select>
 <div id="history"></div>
 <div class="reset-row"><button onclick="resetMonth()">🗑 Reiniciar mes</button></div>
+<h3 style="color:var(--accent);margin:1.2rem 0 .6rem;font-size:.9rem">🔦 Apagones</h3>
+<div class="blackout-toggle"><button id="blackoutBtn" onclick="toggleBlackout()">⚡ SE FUE LA LUZ</button></div>
+<div id="blackoutStats"></div>
 </div>
 
 <div class="card" id="panelChart">
@@ -188,7 +215,7 @@ canvas{width:100%;max-height:200px;margin-top:.8rem}
 
 <script>
 // === DB (IndexedDB con fallback localStorage) ===
-const DB_NAME='une_electrico',DB_VER=1;
+const DB_NAME='une_electrico',DB_VER=2;
 let db=null;
 
 function openDB(){
@@ -199,6 +226,7 @@ function openDB(){
       if(!d.objectStoreNames.contains('readings'))d.createObjectStore('readings',{keyPath:'id'});
       if(!d.objectStoreNames.contains('equipment'))d.createObjectStore('equipment',{keyPath:'id'});
       if(!d.objectStoreNames.contains('config'))d.createObjectStore('config',{keyPath:'key'});
+      if(!d.objectStoreNames.contains('blackouts'))d.createObjectStore('blackouts',{keyPath:'id'});
     };
     req.onsuccess=e=>{db=e.target.result;res(db);};
     req.onerror=()=>rej(req.error);
@@ -324,7 +352,7 @@ function renderMeters(){
 async function switchMeter(){
   config.activeMeter=parseInt(document.getElementById('meterSelect').value);
   await dbPut('config',{key:'main',value:config});
-  await loadReadings();renderAll();
+  await loadReadings();await loadBlackouts();renderAll();renderBlackouts();
 }
 async function addMeter(){
   const name=prompt('Nombre del metro:');
@@ -421,9 +449,11 @@ function checkAlerts(){
   const md=getMonthReadings(months[0]);
   if(md.length<2){document.getElementById('alertBox').innerHTML='';return;}
   const consumed=md[md.length-1].reading-md[0].reading;
-  let html='';
+  const threshold=config.alertThreshold||450;
+  const pct=Math.min(100,Math.round((consumed/threshold)*100));
+  let html=`<div class="thermo"><div class="thermo-label"><span>0 kWh</span><span>${consumed} / ${threshold} kWh</span></div><div class="thermo-bar"><div class="thermo-fill${pct>=80?' warn':''}" style="width:${pct}%"></div><span class="thermo-pct">${pct}%</span></div></div>`;
   if(consumed>=config.alertThreshold){
-    html=`<div class="alert-box">⚠️ <strong>Alerta:</strong> Consumo actual ${consumed} kWh alcanzó el umbral de ${config.alertThreshold} kWh.</div>`;
+    html+=`<div class="alert-box">⚠️ <strong>Alerta:</strong> Consumo actual ${consumed} kWh alcanzó el umbral de ${config.alertThreshold} kWh.</div>`;
   }
   if(consumed>400&&consumed<500){
     html+=`<div class="alert-box" style="border-color:rgba(255,165,0,.3);color:orange">⚡ Te acercas a los 500 kWh. Después se aplica recargo del ${config.tariffs.surcharge}%.</div>`;
@@ -748,6 +778,92 @@ function renderAll(){
   renderRegResult();renderHistory();checkAlerts();
 }
 
+// === BLACKOUTS ===
+let blackouts=[];
+async function loadBlackouts(){blackouts=(await dbGetAll('blackouts')).filter(b=>b.metroId===config.activeMeter);blackouts.sort((a,b)=>a.timestamp-b.timestamp);}
+
+function getBlackoutState(){
+  const last=blackouts[blackouts.length-1];
+  return last&&last.tipo==='inicio';
+}
+
+async function toggleBlackout(){
+  const isOff=getBlackoutState();
+  const entry={id:Date.now(),tipo:isOff?'fin':'inicio',timestamp:Date.now(),metroId:config.activeMeter};
+  await dbPut('blackouts',entry);
+  blackouts.push(entry);
+  // Auto-close orphans >24h
+  if(entry.tipo==='inicio'){
+    const orphan=blackouts.filter(b=>b.tipo==='inicio').slice(-2)[0];
+    if(orphan&&orphan.id!==entry.id&&(entry.timestamp-orphan.timestamp)>86400000){
+      const fix={id:orphan.timestamp+1,tipo:'fin',timestamp:orphan.timestamp+86400000,metroId:config.activeMeter};
+      await dbPut('blackouts',fix);blackouts.push(fix);blackouts.sort((a,b)=>a.timestamp-b.timestamp);
+    }
+  }
+  renderBlackouts();
+  toast(isOff?'💡 Luz registrada':'⚡ Apagón registrado');
+}
+
+function renderBlackouts(){
+  const btn=document.getElementById('blackoutBtn');
+  const isOff=getBlackoutState();
+  btn.textContent=isOff?'💡 VOLVIÓ LA LUZ':'⚡ SE FUE LA LUZ';
+  btn.className=isOff?'blackout-off':'blackout-on';
+  // Stats this month
+  const now=Date.now(),monthAgo=now-30*86400000;
+  const recent=blackouts.filter(b=>b.timestamp>=monthAgo);
+  let totalHours=0,longest=0,current=0;
+  for(let i=0;i<recent.length;i++){
+    if(recent[i].tipo==='inicio'){
+      const end=recent.find((b,j)=>j>i&&b.tipo==='fin');
+      const dur=((end?end.timestamp:now)-recent[i].timestamp)/3600000;
+      totalHours+=dur;longest=Math.max(longest,dur);
+    }
+  }
+  const days=Math.min(30,(now-monthAgo)/86400000);
+  const el=document.getElementById('blackoutStats');
+  if(totalHours>0){
+    el.innerHTML=`<div class="blackout-stats">Últimos 30 días: <strong>${totalHours.toFixed(1)}h</strong> sin luz | Promedio: <strong>${(totalHours/days).toFixed(1)}h/día</strong> | Racha: <strong>${longest.toFixed(1)}h</strong></div>`;
+  }else{el.innerHTML='';}
+}
+
+// === INVERSE CALCULATOR ===
+function setCalcMode(mode){
+  document.getElementById('calcNormal').style.display=mode==='normal'?'':'none';
+  document.getElementById('calcInverse').style.display=mode==='inverse'?'':'none';
+  document.getElementById('modeNormal').style.background=mode==='normal'?'linear-gradient(135deg,var(--accent),var(--accent3))':'';
+  document.getElementById('modeNormal').style.color=mode==='normal'?'#fff':'var(--text)';
+  document.getElementById('modeInverse').style.background=mode==='inverse'?'linear-gradient(135deg,var(--accent),var(--accent3))':'';
+  document.getElementById('modeInverse').style.color=mode==='inverse'?'#fff':'var(--text)';
+  document.getElementById('calcResult').innerHTML='';
+}
+
+function calcInverse(){
+  const budget=parseFloat(document.getElementById('budget').value);
+  if(!budget||budget<=0)return toast('Ingresa un presupuesto válido','error');
+  const ranges=config.tariffs.ranges,surcharge=config.tariffs.surcharge/100;
+  let remaining=budget,kwh=0,breakdown=[];
+  // First 500 kWh without surcharge
+  for(const[size,rate]of ranges){
+    if(kwh>=500)break;
+    const maxInRange=Math.min(size,500-kwh);
+    const canAfford=Math.min(maxInRange,Math.floor(remaining/rate));
+    if(canAfford<=0)break;
+    kwh+=canAfford;remaining-=canAfford*rate;
+    breakdown.push({used:canAfford,rate,subtotal:canAfford*rate});
+  }
+  // Beyond 500 with surcharge
+  if(remaining>0&&kwh>=500){
+    let acc=0,excRate=ranges[ranges.length-1][1];
+    for(const[size,rate]of ranges){acc+=size;if(kwh<acc){excRate=rate;break;}}
+    const effectiveRate=excRate*(1+surcharge);
+    const extra=Math.floor(remaining/effectiveRate);
+    if(extra>0){kwh+=extra;remaining-=extra*effectiveRate;breakdown.push({used:extra,rate:excRate,recargo:true,subtotal:extra*effectiveRate});}
+  }
+  let bd=breakdown.map(b=>`${b.used} kWh × $${b.rate.toFixed(2)}${b.recargo?' (+'+config.tariffs.surcharge+'%)':''} = <span>$${b.subtotal.toFixed(2)}</span>`).join('<br>');
+  document.getElementById('calcResult').innerHTML=`<div class="result"><h3>💰 Con tu presupuesto</h3><p>Puedes consumir: <span class="big">${kwh} kWh</span></p><p>Gasto: <strong>${(budget-remaining).toFixed(2)} CUP</strong> | Sobrante: <strong>${remaining.toFixed(2)} CUP</strong></p><div class="breakdown">${bd}</div></div>`;
+}
+
 // === INIT ===
 async function init(){
   await openDB();
@@ -756,10 +872,13 @@ async function init(){
   renderMeters();
   await loadReadings();
   await loadEquipment();
+  await loadBlackouts();
   document.getElementById('date').value=new Date().toISOString().slice(0,10);
   document.getElementById('time').value=new Date().toTimeString().slice(0,5);
   showTab('calc');
+  setCalcMode('normal');
   renderAll();
+  renderBlackouts();
 }
 init();
 

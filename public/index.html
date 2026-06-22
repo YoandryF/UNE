@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f0f1a">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="styles.css">
+<title>Consumo Eléctrico - UNE Cuba</title>
+</head>
+<body>
+<h1>⚡ Consumo Eléctrico</h1>
+<p class="subtitle">Tarifas residenciales UNE • Cuba</p>
+<div id="syncStatus" class="sync-indicator"></div>
+
+<div class="top-bar">
+<select id="meterSelect" onchange="switchMeter()"></select>
+<button onclick="addMeter()">+ Metro</button>
+<button onclick="toggleTheme()">🌓</button>
+<button onclick="exportData()">📥</button>
+<label style="margin:0;font-size:.8rem;cursor:pointer"><input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">📤</label>
+</div>
+
+<div class="tabs" role="tablist">
+<button id="tabCalc" role="tab" onclick="showTab('calc')">🧮 Calc</button>
+<button id="tabReg" role="tab" onclick="showTab('reg')">📊 Registro</button>
+<button id="tabChart" role="tab" onclick="showTab('chart')">📈 Gráfico</button>
+<button id="tabEquip" role="tab" onclick="showTab('equip')">🔌 Equipos</button>
+<button id="tabTar" role="tab" onclick="showTab('tar')">⚙️ Config</button>
+</div>
+
+<div class="card" id="panelCalc" role="tabpanel">
+<div style="display:flex;gap:.5rem;margin-bottom:.8rem">
+<button class="btn btn-sec" style="margin:0;flex:1;padding:.5rem" id="modeNormal" onclick="setCalcMode('normal')">kWh → CUP</button>
+<button class="btn btn-sec" style="margin:0;flex:1;padding:.5rem" id="modeInverse" onclick="setCalcMode('inverse')">CUP → kWh</button>
+</div>
+<div id="calcNormal">
+<label>Consumo total del mes (kWh)</label>
+<input type="number" id="kwh" placeholder="Ej: 350">
+<button class="btn" onclick="calculate()">Calcular Factura</button>
+</div>
+<div id="calcInverse" style="display:none">
+<label>Presupuesto disponible (CUP)</label>
+<input type="number" id="budget" placeholder="Ej: 1500">
+<button class="btn" onclick="calcInverse()">¿Cuánto puedo consumir?</button>
+</div>
+<div id="calcResult"></div>
+</div>
+
+<div class="card" id="panelReg" role="tabpanel">
+<details>
+<summary>💡 ¿Cómo leer el metro contador?</summary>
+<ul>
+<li>Lectura de <strong>izquierda a derecha</strong>.</li>
+<li>Último número en <strong style="color:var(--accent2)">rojo</strong> o tras coma → se ignora.</li>
+<li>Ej: <code>0 3 4 2 <span style="color:var(--accent2)">1</span></code> → <strong>0342 kWh</strong></li>
+</ul>
+</details>
+<label>Lectura del metro contador (kWh)</label>
+<input type="number" id="reading" placeholder="Ej: 12540">
+<label>Fecha</label>
+<input type="date" id="date">
+<label>Hora (opcional)</label>
+<input type="time" id="time">
+<label>📷 Foto evidencia</label>
+<input type="file" id="photo" accept="image/*" capture="environment">
+<button class="btn" onclick="addReading()">Registrar Lectura</button>
+<div id="regResult"></div>
+<div id="alertBox"></div>
+<h3 style="color:var(--accent);margin:1.2rem 0 .6rem;font-size:.9rem">📅 Historial</h3>
+<select id="monthSelect" onchange="renderHistory()"></select>
+<div id="history"></div>
+<div class="reset-row"><button onclick="resetMonth()">🗑 Reiniciar mes</button></div>
+<h3 style="color:var(--accent);margin:1.2rem 0 .6rem;font-size:.9rem">🔦 Apagones</h3>
+<div class="blackout-toggle"><button id="blackoutBtn" onclick="toggleBlackout()">⚡ SE FUE LA LUZ</button></div>
+<div id="blackoutStats"></div>
+</div>
+
+<div class="card" id="panelChart" role="tabpanel">
+<h3 style="color:var(--accent);margin-bottom:.5rem;font-size:.95rem">📈 Consumo Diario</h3>
+<select id="chartMonth" onchange="renderChart()"></select>
+<canvas id="chartCanvas" height="200"></canvas>
+<div id="comparison"></div>
+<div id="costPerDay"></div>
+</div>
+
+<div class="card" id="panelEquip" role="tabpanel">
+<h3 style="color:var(--accent);margin-bottom:.5rem;font-size:.95rem">🔌 Equipos Eléctricos</h3>
+<p class="note">Registra tus equipos para estimar su consumo mensual.</p>
+<label>Nombre del equipo</label>
+<input type="text" id="equipName" placeholder="Ej: Refrigerador">
+<label>Potencia (Watts)</label>
+<input type="number" id="equipWatts" placeholder="Ej: 150">
+<label>Horas de uso diario</label>
+<input type="number" id="equipHours" placeholder="Ej: 24" step="0.5">
+<button class="btn" onclick="addEquipment()">Agregar Equipo</button>
+<div id="equipList"></div>
+<div id="equipTotal"></div>
+</div>
+
+<div class="card" id="panelTar" role="tabpanel">
+<h3 style="color:var(--accent);margin-bottom:.5rem;font-size:.95rem">⚙️ Configuración</h3>
+<label style="margin-top:.8rem;font-weight:600;color:var(--accent);font-size:.85rem">Metros Contadores</label>
+<p class="note">Administra tus metros contadores.</p>
+<div id="metersEditor"></div>
+<button class="btn btn-sec" onclick="addMeterFromConfig()">+ Agregar Metro</button>
+<label style="margin-top:1.2rem;font-weight:600;color:var(--accent);font-size:.85rem">Ciclo de facturación</label>
+<label>Día de corte del mes</label>
+<input type="number" id="billCycleDay" min="1" max="28" placeholder="Ej: 1">
+<label style="margin-top:.8rem;font-weight:600;color:var(--accent);font-size:.85rem">Alertas</label>
+<label>Umbral de alerta (kWh)</label>
+<input type="number" id="alertThreshold" placeholder="Ej: 450">
+<label style="margin-top:1rem;font-weight:600;color:var(--accent);font-size:.85rem">Tarifas por rango</label>
+<div id="tariffEditor"></div>
+<label style="margin-top:.8rem">Recargo exceso >500 kWh (%)</label>
+<input type="number" id="surcharge" value="25" step="1">
+<button class="btn" onclick="saveConfig()">💾 Guardar Configuración</button>
+<button class="btn btn-sec" onclick="resetTariffs()">↺ Restaurar Tarifas por Defecto</button>
+</div>
+
+<div id="modal"></div>
+<script src="db.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

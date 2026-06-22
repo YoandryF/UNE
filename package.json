@@ -1,0 +1,13 @@
+{
+  "name": "une-consumo-electrico",
+  "version": "1.0.0",
+  "description": "Control de consumo eléctrico UNE Cuba",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "11.9.1"
+  }
+}
