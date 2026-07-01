@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'une-v2-' + '20260620';
+const CACHE_VERSION = 'une-v2-' + '20260629';
 const ASSETS = [
   './',
   './index.html',

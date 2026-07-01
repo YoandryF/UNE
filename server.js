@@ -161,3 +161,13 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => console.log(`UNE server running at http://localhost:${PORT}`));
+
+// Graceful shutdown: checkpoint WAL so data persists
+function shutdown() {
+  console.log('Cerrando servidor y guardando datos...');
+  try { db.pragma('wal_checkpoint(TRUNCATE)'); db.close(); } catch (e) {}
+  process.exit(0);
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+process.on('SIGHUP', shutdown);

@@ -1,5 +1,5 @@
 // db.js — IndexedDB local + sync con backend SQLite
-const DB_NAME = 'une_electrico', DB_VER = 3;
+const DB_NAME = 'une_electrico', DB_VER = 4;
 const API = location.origin + '/api';
 let db = null;
 
@@ -13,6 +13,7 @@ function openDB() {
       if (!d.objectStoreNames.contains('config')) d.createObjectStore('config', { keyPath: 'key' });
       if (!d.objectStoreNames.contains('blackouts')) d.createObjectStore('blackouts', { keyPath: 'id' });
       if (!d.objectStoreNames.contains('_pending')) d.createObjectStore('_pending', { keyPath: 'id', autoIncrement: true });
+      if (!d.objectStoreNames.contains('equipment_usage')) d.createObjectStore('equipment_usage', { keyPath: 'id' });
     };
     req.onsuccess = e => { db = e.target.result; res(db); };
     req.onerror = () => rej(req.error);

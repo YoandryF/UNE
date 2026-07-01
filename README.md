@@ -25,12 +25,21 @@ Aplicación web progresiva (PWA) para el control y registro del consumo eléctri
 
 ### 🔌 Gestión de Equipos
 - Registro de electrodomésticos con potencia (W) y horas de uso
-- Estimación automática del consumo mensual por equipo
-- Proyección de factura basada en equipos registrados
+- **Equipos 24/7** (siempre encendidos) — Toggle "Siempre encendido", cálculo automático
+- **Equipos intermitentes** — Registro de uso con hora inicio/fin
+- Validación: máximo 24h por equipo por día
+- Botón rápido "24h completo"
+- Estimación automática del consumo mensual ajustada por apagones
+- **Comparación Estimado vs Real** — Identifica kWh sin equipos asignados
+- **Top Consumidores** — Gráfico de barras ordenado por consumo
+- **Log de uso por equipo** — Historial detallado con kWh calculados
 
 ### 🔦 Registro de Apagones
 - Botón para registrar inicio/fin de apagones
+- Historial detallado con fecha, hora y duración de cada evento
 - Estadísticas: horas sin luz, promedio diario, racha más larga
+- **Impacto integrado:** Los apagones ajustan automáticamente el cálculo de equipos 24/7
+- **Indicador en gráficos:** Días con apagón marcados en rojo en el gráfico de consumo
 
 ### ⚙️ Configuración
 - Tarifas editables (adaptable a cambios futuros del tarifario)

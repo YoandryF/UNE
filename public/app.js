@@ -275,7 +275,8 @@ function renderHistory(){
     const daily=i>0?(d.reading-data[i-1].reading):'-';
     const hasPhoto=d.photo?'📷':'';
     const upd=d.updatedAt&&d.updatedAt!==d.createdAt?`<br><span class="updated">✏️${esc(d.updatedAt.slice(0,10))}</span>`:'';
-    html+=`<tr><td>${esc(d.date)}${upd}</td><td>${esc(d.time)||'–'}</td><td>${d.reading}</td><td>${daily==='-'?'–':daily+' kWh'}</td><td><div class="actions">${hasPhoto?`<button class="act" onclick="viewPhoto('${d.id}')">📷</button>`:''}<button class="act" onclick="editReading('${d.id}')">✏️</button><button class="act" onclick="delReading('${d.id}')">✕</button></div></td></tr>`;
+    const equipBtn=i>0?`<button class="act" onclick="showPeriodUsage('${data[i-1].date}','${d.date}')" title="Equipos usados en este período">🔌</button>`:'';
+    html+=`<tr><td>${esc(d.date)}${upd}</td><td>${esc(d.time)||'–'}</td><td>${d.reading}</td><td>${daily==='-'?'–':daily+' kWh'}</td><td><div class="actions">${equipBtn}${hasPhoto?`<button class="act" onclick="viewPhoto('${d.id}')">📷</button>`:''}<button class="act" onclick="editReading('${d.id}')">✏️</button><button class="act" onclick="delReading('${d.id}')">✕</button></div></td></tr>`;
   });
   html+='</table>';
   const total=data.length>1?data[data.length-1].reading-data[0].reading:0;
@@ -349,25 +350,45 @@ function renderChart(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   if(data.length<2){ctx.fillStyle=getComputedStyle(document.body).getPropertyValue('--muted');ctx.font='14px sans-serif';ctx.fillText('Datos insuficientes',canvas.width/2-60,200);return;}
   const dailyData=[];
-  for(let i=1;i<data.length;i++)dailyData.push({label:data[i].date.slice(5),value:data[i].reading-data[i-1].reading});
+  for(let i=1;i<data.length;i++){
+    const dateFrom=data[i-1].date,dateTo=data[i].date;
+    const bHrs=getBlackoutHours(dateFrom+'T00:00:00',dateTo+'T23:59:59');
+    dailyData.push({label:data[i].date.slice(5),value:data[i].reading-data[i-1].reading,blackoutHrs:bHrs});
+  }
   const max=Math.max(...dailyData.map(d=>d.value),1);
   const barW=Math.min(40,(canvas.width-80)/dailyData.length-4);
   const chartH=canvas.height-60;
   const accent=getComputedStyle(document.body).getPropertyValue('--accent').trim();
   const accent2=getComputedStyle(document.body).getPropertyValue('--accent2').trim();
   const muted=getComputedStyle(document.body).getPropertyValue('--muted').trim();
+  let hasBlackout=false;
   dailyData.forEach((d,i)=>{
     const h=(d.value/max)*chartH;
     const x=40+i*(barW+4);
     const gradient=ctx.createLinearGradient(x,canvas.height-30-h,x,canvas.height-30);
-    gradient.addColorStop(0,accent);gradient.addColorStop(1,accent2);
+    if(d.blackoutHrs>0){
+      gradient.addColorStop(0,'#E94560');gradient.addColorStop(1,accent2);
+      hasBlackout=true;
+    }else{
+      gradient.addColorStop(0,accent);gradient.addColorStop(1,accent2);
+    }
     ctx.fillStyle=gradient;
     ctx.beginPath();ctx.roundRect(x,canvas.height-30-h,barW,h,4);ctx.fill();
+    // Blackout indicator dot
+    if(d.blackoutHrs>0){
+      ctx.fillStyle='#E94560';
+      ctx.beginPath();ctx.arc(x+barW/2,canvas.height-30-h-8,4,0,Math.PI*2);ctx.fill();
+    }
     ctx.fillStyle=muted;ctx.font='10px sans-serif';
     ctx.save();ctx.translate(x+barW/2,canvas.height-5);ctx.rotate(-0.5);ctx.fillText(d.label,0,0);ctx.restore();
     ctx.fillStyle=accent;ctx.font='10px sans-serif';ctx.fillText(d.value,x,canvas.height-35-h);
   });
-  renderComparison(month);renderCostPerDay(month);
+  // Legend for blackout days
+  if(hasBlackout){
+    ctx.fillStyle='#E94560';ctx.beginPath();ctx.arc(canvas.width-120,15,4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=muted;ctx.font='11px sans-serif';ctx.fillText('= Día con apagón',canvas.width-112,19);
+  }
+  renderComparison(month);renderCostPerDay(month);renderEquipChart();
 }
 
 function renderComparison(month){
@@ -398,12 +419,13 @@ function renderCostPerDay(month){
 async function addEquipment(){
   const name=document.getElementById('equipName').value.trim();
   const watts=parseFloat(document.getElementById('equipWatts').value);
-  const hours=parseFloat(document.getElementById('equipHours').value);
-  if(!name||!watts||!hours)return toast('Completa todos los campos','error');
-  const entry={id:newId(),name,watts,hours,meter:config.activeMeter};
+  const alwaysOn=document.getElementById('equipAlwaysOn').checked;
+  const hours=alwaysOn?24:parseFloat(document.getElementById('equipHours').value);
+  if(!name||!watts||(!hours&&!alwaysOn))return toast('Completa todos los campos','error');
+  const entry={id:newId(),name,watts,hours,meter:config.activeMeter,alwaysOn:!!alwaysOn};
   await dbPutSync('equipment',entry);
   equipment.push(entry);
-  document.getElementById('equipName').value='';document.getElementById('equipWatts').value='';document.getElementById('equipHours').value='';
+  document.getElementById('equipName').value='';document.getElementById('equipWatts').value='';document.getElementById('equipHours').value='';document.getElementById('equipAlwaysOn').checked=false;document.getElementById('equipHours').disabled=false;
   renderEquipment();
 }
 
@@ -421,41 +443,123 @@ function editEquipment(id){
     <button class="modal-close" onclick="closeModal()">&times;</button><h3>✏️ Editar Equipo</h3>
     <label>Nombre</label><input type="text" id="editEquipName" value="${esc(e.name)}">
     <label>Potencia (Watts)</label><input type="number" id="editEquipWatts" value="${e.watts}">
-    <label>Horas de uso diario</label><input type="number" id="editEquipHours" value="${e.hours}" step="0.5">
+    <label>Horas de uso diario</label><input type="number" id="editEquipHours" value="${e.hours}" step="0.5" ${e.alwaysOn?'disabled':''}>
+    <label style="display:inline-flex;align-items:center;gap:.4rem;margin:.5rem 0;cursor:pointer;width:auto"><input type="checkbox" id="editEquipAlwaysOn" style="width:auto;margin:0" ${e.alwaysOn?'checked':''} onchange="document.getElementById('editEquipHours').value=this.checked?'24':document.getElementById('editEquipHours').value;document.getElementById('editEquipHours').disabled=this.checked"> <span style="font-size:.85rem">⚡ Siempre encendido (24/7)</span></label>
     <button class="btn" style="margin-top:.5rem" onclick="saveEquipEdit('${e.id}')">💾 Guardar</button></div></div>`;
 }
 
 async function saveEquipEdit(id){
   const name=document.getElementById('editEquipName').value.trim();
   const watts=parseFloat(document.getElementById('editEquipWatts').value);
-  const hours=parseFloat(document.getElementById('editEquipHours').value);
-  if(!name||!watts||!hours)return toast('Completa todos los campos','error');
+  const alwaysOn=document.getElementById('editEquipAlwaysOn').checked;
+  const hours=alwaysOn?24:parseFloat(document.getElementById('editEquipHours').value);
+  if(!name||!watts||(!hours&&!alwaysOn))return toast('Completa todos los campos','error');
   if(!await confirmDialog('¿Guardar los cambios en este equipo?',{type:'info',confirmText:'Guardar'}))return;
   const idx=equipment.findIndex(x=>x.id===id);
   if(idx===-1)return;
-  equipment[idx]={...equipment[idx],name,watts,hours};
+  equipment[idx]={...equipment[idx],name,watts,hours,alwaysOn:!!alwaysOn};
   await dbPutSync('equipment',equipment[idx]);
   closeModal();renderEquipment();
 }
 
 function renderEquipment(){
-  if(!equipment.length){document.getElementById('equipList').innerHTML='<p class="empty">No hay equipos registrados</p>';document.getElementById('equipTotal').innerHTML='';return;}
-  let html='<table><tr><th>Equipo</th><th>W</th><th>Hrs/día</th><th>kWh/mes</th><th></th></tr>';
+  if(!equipment.length){document.getElementById('equipList').innerHTML='<p class="empty">No hay equipos registrados</p>';document.getElementById('equipTotal').innerHTML='';document.getElementById('equipCompare').innerHTML='';return;}
+  // Calculate blackout hours this month
+  const blackoutHrs=getMonthBlackoutHours();
+  const effectiveHours24=(24*30)-blackoutHrs;
+  // Separate always-on vs intermittent
+  const permanent=equipment.filter(e=>e.alwaysOn);
+  const intermittent=equipment.filter(e=>!e.alwaysOn);
+  let html='';
+  if(permanent.length){
+    html+='<p style="font-size:.8rem;color:var(--accent);margin:.8rem 0 .3rem;font-weight:600">⚡ Siempre encendidos (24/7)</p>';
+    if(blackoutHrs>0)html+=`<p style="font-size:.75rem;color:var(--accent2);margin-bottom:.3rem">⚠️ Descontando ${blackoutHrs.toFixed(1)}h de apagones este mes</p>`;
+    html+='<table><tr><th>Equipo</th><th>W</th><th>kWh/mes</th><th></th></tr>';
+    permanent.forEach(e=>{
+      const monthly=(e.watts*effectiveHours24)/1000;
+      html+=`<tr><td>${esc(e.name)} <span style="background:var(--accent);color:#000;font-size:.6rem;padding:1px 4px;border-radius:4px">24/7</span></td><td>${e.watts}</td><td>${monthly.toFixed(1)}</td><td><div class="actions"><button class="act" onclick="editEquipment('${e.id}')">✏️</button><button class="act" onclick="delEquipment('${e.id}')">✕</button></div></td></tr>`;
+    });
+    html+='</table>';
+  }
+  if(intermittent.length){
+    html+='<p style="font-size:.8rem;color:var(--accent2);margin:.8rem 0 .3rem;font-weight:600">🔄 Uso intermitente</p>';
+    html+='<table><tr><th>Equipo</th><th>W</th><th>Hrs/día</th><th>kWh/mes</th><th></th></tr>';
+    intermittent.forEach(e=>{
+      const monthly=(e.watts*e.hours*30)/1000;
+      html+=`<tr><td>${esc(e.name)}</td><td>${e.watts}</td><td>${e.hours}</td><td>${monthly.toFixed(1)}</td><td><div class="actions"><button class="act" onclick="showEquipUsage('${e.id}')" title="Registro de uso">📋</button><button class="act" onclick="editEquipment('${e.id}')">✏️</button><button class="act" onclick="delEquipment('${e.id}')">✕</button></div></td></tr>`;
+    });
+    html+='</table>';
+  }
+  document.getElementById('equipList').innerHTML=html;
+
   let totalKwh=0;
   equipment.forEach(e=>{
-    const monthly=(e.watts*e.hours*30)/1000;
-    totalKwh+=monthly;
-    html+=`<tr><td>${esc(e.name)}</td><td>${e.watts}</td><td>${e.hours}</td><td>${monthly.toFixed(1)}</td><td><div class="actions"><button class="act" onclick="editEquipment('${e.id}')">✏️</button><button class="act" onclick="delEquipment('${e.id}')">✕</button></div></td></tr>`;
+    if(e.alwaysOn)totalKwh+=(e.watts*effectiveHours24)/1000;
+    else totalKwh+=(e.watts*e.hours*30)/1000;
   });
-  html+='</table>';
-  document.getElementById('equipList').innerHTML=html;
   const{total}=calcBill(Math.round(totalKwh));
-  document.getElementById('equipTotal').innerHTML=`<div class="result"><h3>Estimación mensual por equipos</h3><p>Consumo total estimado: <strong>${totalKwh.toFixed(0)} kWh</strong></p><p>Factura estimada: <span class="big">${total.toFixed(2)} CUP</span></p></div>`;
+  let totalHtml=`<div class="result"><h3>Estimación mensual por equipos</h3><p>Consumo total estimado: <strong>${totalKwh.toFixed(0)} kWh</strong></p><p>Factura estimada: <span class="big">${total.toFixed(2)} CUP</span></p>`;
+  if(blackoutHrs>0){
+    const savedKwh=permanent.reduce((s,e)=>s+(e.watts*blackoutHrs)/1000,0);
+    totalHtml+=`<p style="font-size:.8rem;color:var(--accent);margin-top:.4rem">💡 Apagones redujeron ~${savedKwh.toFixed(1)} kWh del consumo de equipos 24/7</p>`;
+  }
+  totalHtml+=`</div>`;
+  document.getElementById('equipTotal').innerHTML=totalHtml;
+
+  // Compare estimated vs real consumption
+  const months=getMonths();
+  if(months.length){
+    const md=getMonthReadings(months[0]);
+    if(md.length>=2){
+      const realConsumed=md[md.length-1].reading-md[0].reading;
+      const days=Math.max(1,((new Date(md[md.length-1].date)-new Date(md[0].date))/86400000));
+      const realDaily=realConsumed/days;
+      const estimatedDaily=totalKwh/30;
+      const diff=realDaily-estimatedDaily;
+      const diffPct=estimatedDaily>0?((diff/estimatedDaily)*100).toFixed(0):0;
+      let compareHtml=`<div class="result" style="margin-top:.8rem"><h3>📊 Estimado vs Real</h3>`;
+      compareHtml+=`<p>Equipos registrados: <strong>${estimatedDaily.toFixed(1)} kWh/día</strong></p>`;
+      compareHtml+=`<p>Consumo real medido: <strong>${realDaily.toFixed(1)} kWh/día</strong></p>`;
+      if(diff>1){
+        compareHtml+=`<p style="color:var(--accent2)">⚠️ Hay <strong>${diff.toFixed(1)} kWh/día</strong> (+${diffPct}%) sin identificar. Revisa si falta algún equipo.</p>`;
+      }else if(diff<-1){
+        compareHtml+=`<p style="color:var(--accent)">✓ Tus equipos estimados superan el consumo real. Las horas reales de uso podrían ser menores.</p>`;
+      }else{
+        compareHtml+=`<p style="color:green">✓ Tus equipos coinciden con el consumo real. ¡Buen control!</p>`;
+      }
+      compareHtml+=`</div>`;
+      document.getElementById('equipCompare').innerHTML=compareHtml;
+    }else{document.getElementById('equipCompare').innerHTML='';}
+  }else{document.getElementById('equipCompare').innerHTML='';}
 }
 
 // === BLACKOUTS ===
 async function loadBlackouts(){blackouts=(await dbGetAll('blackouts')).filter(b=>b.metroId===config.activeMeter);blackouts.sort((a,b)=>a.timestamp-b.timestamp);}
 function getBlackoutState(){const last=blackouts[blackouts.length-1];return last&&last.tipo==='inicio';}
+
+// Calculate blackout hours between two timestamps (or dates as strings)
+function getBlackoutHours(fromTs,toTs){
+  if(typeof fromTs==='string')fromTs=new Date(fromTs).getTime();
+  if(typeof toTs==='string')toTs=new Date(toTs).getTime();
+  const now=Date.now();
+  let total=0;
+  for(let i=0;i<blackouts.length;i++){
+    if(blackouts[i].tipo==='inicio'){
+      const start=Math.max(blackouts[i].timestamp,fromTs);
+      const end=blackouts.find((b,j)=>j>i&&b.tipo==='fin');
+      const endTs=Math.min(end?end.timestamp:now,toTs);
+      if(start<endTs)total+=(endTs-start)/3600000;
+    }
+  }
+  return total;
+}
+
+// Get blackout hours for current month
+function getMonthBlackoutHours(){
+  const now=new Date();
+  const monthStart=new Date(now.getFullYear(),now.getMonth(),1).getTime();
+  return getBlackoutHours(monthStart,now.getTime());
+}
 
 async function toggleBlackout(){
   const isOff=getBlackoutState();
@@ -474,17 +578,33 @@ function renderBlackouts(){
   const now=Date.now(),monthAgo=now-30*86400000;
   const recent=blackouts.filter(b=>b.timestamp>=monthAgo);
   let totalHours=0,longest=0;
+  const events=[];
   for(let i=0;i<recent.length;i++){
     if(recent[i].tipo==='inicio'){
       const end=recent.find((b,j)=>j>i&&b.tipo==='fin');
-      const dur=((end?end.timestamp:now)-recent[i].timestamp)/3600000;
+      const endTs=end?end.timestamp:now;
+      const dur=(endTs-recent[i].timestamp)/3600000;
       totalHours+=dur;longest=Math.max(longest,dur);
+      events.push({start:recent[i].timestamp,end:endTs,dur,ongoing:!end});
     }
   }
   const el=document.getElementById('blackoutStats');
+  let html='';
   if(totalHours>0){
-    el.innerHTML=`<div class="blackout-stats">Últimos 30 días: <strong>${totalHours.toFixed(1)}h</strong> sin luz | Promedio: <strong>${(totalHours/30).toFixed(1)}h/día</strong> | Racha: <strong>${longest.toFixed(1)}h</strong></div>`;
-  }else{el.innerHTML='';}
+    html+=`<div class="blackout-stats">Últimos 30 días: <strong>${totalHours.toFixed(1)}h</strong> sin luz | Promedio: <strong>${(totalHours/30).toFixed(1)}h/día</strong> | Racha: <strong>${longest.toFixed(1)}h</strong></div>`;
+  }
+  // History table
+  if(events.length){
+    html+=`<table style="margin-top:.6rem;font-size:.8rem;width:100%"><tr><th>Inicio</th><th>Fin</th><th>Duración</th></tr>`;
+    events.slice().reverse().slice(0,15).forEach(ev=>{
+      const startStr=new Date(ev.start).toLocaleString('es',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      const endStr=ev.ongoing?'<span style="color:var(--accent2)">⏳ En curso</span>':new Date(ev.end).toLocaleString('es',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      const durStr=ev.dur>=1?ev.dur.toFixed(1)+'h':Math.round(ev.dur*60)+'min';
+      html+=`<tr><td>${startStr}</td><td>${endStr}</td><td><strong>${durStr}</strong></td></tr>`;
+    });
+    html+=`</table>`;
+  }
+  el.innerHTML=html;
 }
 
 // === CONFIG UI ===
@@ -521,7 +641,8 @@ async function exportData(){
   const allReadings=await dbGetAll('readings');
   const allEquip=await dbGetAll('equipment');
   const allBlack=await dbGetAll('blackouts');
-  const data=JSON.stringify({readings:allReadings,equipment:allEquip,blackouts:allBlack,config},null,2);
+  const allUsage=await dbGetAll('equipment_usage');
+  const data=JSON.stringify({readings:allReadings,equipment:allEquip,blackouts:allBlack,equipment_usage:allUsage,config},null,2);
   const blob=new Blob([data],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);a.download=`une-backup-${new Date().toISOString().slice(0,10)}.json`;
@@ -537,6 +658,7 @@ async function importData(e){
     if(data.readings)for(const r of data.readings)await dbPutSync('readings',r);
     if(data.equipment)for(const eq of data.equipment)await dbPutSync('equipment',eq);
     if(data.blackouts)for(const b of data.blackouts)await dbPutSync('blackouts',b);
+    if(data.equipment_usage)for(const u of data.equipment_usage)await dbPut('equipment_usage',u);
     if(data.config){config={...config,...data.config};await dbPutSync('config',{key:'main',value:config});}
     await loadReadings();await loadEquipment();await loadBlackouts();
     renderAll();toast('Datos importados correctamente');
@@ -579,3 +701,214 @@ async function init(){
 init();
 
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+// === PERIOD USAGE ===
+async function showPeriodUsage(dateFrom,dateTo){
+  const allUsage=(await dbGetAll('equipment_usage')).filter(u=>u.date>=dateFrom&&u.date<=dateTo&&(u.meter??0)===config.activeMeter);
+  
+  // Group by equipment
+  const byEquip={};
+  allUsage.forEach(u=>{
+    if(!byEquip[u.equipId])byEquip[u.equipId]={minutes:0,count:0,name:''};
+    byEquip[u.equipId].minutes+=(u.minutes||0);
+    byEquip[u.equipId].count++;
+  });
+
+  // Add always-on equipment automatically (minus blackout hours)
+  const daysBetween=Math.max(1,Math.round((new Date(dateTo)-new Date(dateFrom))/86400000));
+  const periodBlackoutHrs=getBlackoutHours(dateFrom+'T00:00:00',dateTo+'T23:59:59');
+  const effectiveHrs=(daysBetween*24)-periodBlackoutHrs;
+  equipment.filter(e=>e.alwaysOn).forEach(e=>{
+    if(!byEquip[e.id])byEquip[e.id]={minutes:0,count:0,name:''};
+    byEquip[e.id].minutes+=effectiveHrs*60;
+    byEquip[e.id].name=e.name;
+    byEquip[e.id].auto=true;
+  });
+
+  // Resolve names
+  equipment.forEach(e=>{if(byEquip[e.id])byEquip[e.id].name=e.name;byEquip[e.id]&&(byEquip[e.id].watts=e.watts);});
+
+  const entries=Object.values(byEquip).filter(e=>e.name&&e.minutes>0).sort((a,b)=>b.minutes-a.minutes);
+  let totalKwh=0;
+  let tableHtml=entries.map(e=>{
+    const hrs=(e.minutes/60).toFixed(1);
+    const kwh=(e.watts*e.minutes/60/1000).toFixed(2);
+    totalKwh+=parseFloat(kwh);
+    const badge=e.auto?'<span style="font-size:.6rem;background:var(--accent);color:#000;padding:1px 3px;border-radius:3px">24/7</span>':'';
+    return `<tr><td>${esc(e.name)} ${badge}</td><td>${e.count>0&&!e.auto?e.count+'x':''}</td><td>${hrs}h</td><td>${kwh} kWh</td></tr>`;
+  }).join('');
+
+  const consumed=readings.filter(r=>r.date>=dateFrom&&r.date<=dateTo);
+  const realKwh=consumed.length>=2?consumed[consumed.length-1].reading-consumed[0].reading:0;
+  const diff=realKwh-totalKwh;
+
+  let summary='';
+  if(realKwh>0){
+    summary=`<div style="margin-top:.6rem;padding:.5rem;background:rgba(255,255,255,0.03);border-radius:8px;font-size:.8rem">
+      <p>Consumo real del período: <strong>${realKwh} kWh</strong></p>
+      <p>Equipos identificados: <strong>${totalKwh.toFixed(1)} kWh</strong></p>
+      ${diff>1?`<p style="color:var(--accent2)">⚠️ ${diff.toFixed(1)} kWh sin identificar</p>`:`<p style="color:green">✓ Consumo bien identificado</p>`}
+    </div>`;
+  }
+
+  document.getElementById('modal').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modal-content" style="max-width:450px">
+    <button class="modal-close" onclick="closeModal()">&times;</button>
+    <h3>🔌 Equipos usados</h3>
+    <p class="note">Período: ${dateFrom} → ${dateTo} (${daysBetween} días)${periodBlackoutHrs>0?' • <span style="color:var(--accent2)">'+periodBlackoutHrs.toFixed(1)+'h de apagón</span>':''}</p>
+    ${entries.length?`<table style="margin-top:.6rem;font-size:.8rem"><tr><th>Equipo</th><th>Usos</th><th>Tiempo</th><th>Consumo</th></tr>${tableHtml}</table>`:'<p class="empty">No hay registros de uso en este período</p>'}
+    ${summary}
+  </div></div>`;
+}
+
+// === EQUIPMENT CHART ===
+function renderEquipChart(){
+  const el=document.getElementById('equipChartSection');
+  if(!equipment.length){el.innerHTML='';return;}
+  const blackoutHrs=getMonthBlackoutHours();
+  const effectiveHours24=(24*30)-blackoutHrs;
+  // Sort by monthly kWh descending (adjusted for blackouts)
+  const sorted=[...equipment].map(e=>({...e,kwh:e.alwaysOn?(e.watts*effectiveHours24)/1000:(e.watts*e.hours*30)/1000})).sort((a,b)=>b.kwh-a.kwh);
+  const maxKwh=sorted[0].kwh||1;
+  const totalKwh=sorted.reduce((s,e)=>s+e.kwh,0);
+  const accent=getComputedStyle(document.body).getPropertyValue('--accent').trim();
+  const accent2=getComputedStyle(document.body).getPropertyValue('--accent2').trim();
+  const accent3=getComputedStyle(document.body).getPropertyValue('--accent3').trim();
+  const colors=[accent,accent2,accent3,'#FF9800','#4CAF50','#9C27B0','#00BCD4','#FF5722'];
+
+  let html=`<h3 style="color:var(--accent);margin-bottom:.5rem;font-size:.95rem">🔌 Top Consumidores</h3>`;
+  if(blackoutHrs>0)html+=`<p style="font-size:.75rem;color:var(--muted);margin-bottom:.5rem">Ajustado por ${blackoutHrs.toFixed(1)}h de apagones</p>`;
+  sorted.forEach((e,i)=>{
+    const pct=(e.kwh/maxKwh)*100;
+    const pctTotal=totalKwh>0?((e.kwh/totalKwh)*100).toFixed(0):0;
+    const color=colors[i%colors.length];
+    const badge=e.alwaysOn?'<span style="background:var(--accent);color:#000;font-size:.55rem;padding:1px 3px;border-radius:3px;margin-left:4px">24/7</span>':'';
+    html+=`<div style="margin-bottom:.6rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+        <span style="font-size:.8rem;font-weight:600">${esc(e.name)}${badge}</span>
+        <span style="font-size:.75rem;color:var(--muted)">${e.kwh.toFixed(1)} kWh/mes (${pctTotal}%)</span>
+      </div>
+      <div style="background:rgba(255,255,255,0.05);border-radius:4px;height:8px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width .3s"></div>
+      </div>
+    </div>`;
+  });
+
+  // Blackout impact summary in chart
+  if(blackoutHrs>0){
+    const savedKwh=equipment.filter(e=>e.alwaysOn).reduce((s,e)=>s+(e.watts*blackoutHrs)/1000,0);
+    html+=`<div style="margin-top:.8rem;padding:.6rem;background:rgba(233,69,96,0.08);border-radius:8px;border-left:3px solid var(--accent2)">
+      <p style="font-size:.8rem;font-weight:600;color:var(--accent2);margin-bottom:.2rem">⚡ Impacto de apagones este mes</p>
+      <p style="font-size:.75rem;color:var(--muted)">${blackoutHrs.toFixed(1)} horas sin electricidad → ~${savedKwh.toFixed(1)} kWh menos de consumo en equipos permanentes</p>
+    </div>`;
+  }
+  el.innerHTML=html;
+}
+
+// === EQUIPMENT USAGE LOG ===
+async function showEquipUsage(equipId){
+  const equip=equipment.find(e=>e.id===equipId);
+  if(!equip)return;
+  const allUsage=(await dbGetAll('equipment_usage')).filter(u=>u.equipId===equipId);
+  allUsage.sort((a,b)=>b.date.localeCompare(a.date)||(b.createdAt||'').localeCompare(a.createdAt||''));
+
+  const today=new Date().toISOString().slice(0,10);
+  const now=new Date().toTimeString().slice(0,5);
+
+  // Stats adjusted for blackouts
+  const monthStart=today.slice(0,7);
+  const monthUsage=allUsage.filter(u=>u.date.startsWith(monthStart));
+  let totalMinutes=0;
+  monthUsage.forEach(u=>{
+    if(u.startTime&&u.endTime){
+      const [sh,sm]=u.startTime.split(':').map(Number);
+      const [eh,em]=u.endTime.split(':').map(Number);
+      let mins=(eh*60+em)-(sh*60+sm);
+      const dayStart=new Date(u.date+'T'+u.startTime+':00').getTime();
+      const dayEnd=new Date(u.date+'T'+u.endTime+':00').getTime();
+      const bHrs=getBlackoutHours(dayStart,dayEnd);
+      mins=Math.max(0,mins-Math.round(bHrs*60));
+      totalMinutes+=mins;
+    }else if(u.minutes){
+      totalMinutes+=u.minutes;
+    }
+  });
+  const totalHours=(totalMinutes/60).toFixed(1);
+  const totalKwh=(equip.watts*totalMinutes/60/1000).toFixed(2);
+
+  let historyHtml=allUsage.slice(0,20).map(u=>{
+    let mins=0,label='',hadBlackout=false;
+    if(u.startTime&&u.endTime){
+      const [sh,sm]=u.startTime.split(':').map(Number);
+      const [eh,em]=u.endTime.split(':').map(Number);
+      mins=(eh*60+em)-(sh*60+sm);
+      const dayStart=new Date(u.date+'T'+u.startTime+':00').getTime();
+      const dayEnd=new Date(u.date+'T'+u.endTime+':00').getTime();
+      const bHrs=getBlackoutHours(dayStart,dayEnd);
+      if(bHrs>0){hadBlackout=true;mins=Math.max(0,mins-Math.round(bHrs*60));}
+      label=`${u.startTime} – ${u.endTime}`;
+    }else{
+      mins=u.minutes||0;
+      label=`${mins}min`;
+    }
+    const kwh=(equip.watts*mins/60/1000).toFixed(3);
+    const durLabel=mins>=60?`${(mins/60).toFixed(1)}h`:`${mins}min`;
+    const blackoutBadge=hadBlackout?` <span style="color:var(--accent2);font-size:.65rem">⚡-${Math.round(getBlackoutHours(new Date(u.date+'T'+u.startTime+':00').getTime(),new Date(u.date+'T'+u.endTime+':00').getTime())*60)}min</span>`:'';
+    return `<tr><td>${u.date}</td><td>${label}</td><td>${durLabel}${blackoutBadge}</td><td>${kwh}</td><td><button class="act" onclick="delEquipUsage('${u.id}','${equipId}')">✕</button></td></tr>`;
+  }).join('');
+
+  document.getElementById('modal').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modal-content" style="max-width:500px">
+    <button class="modal-close" onclick="closeModal()">&times;</button>
+    <h3>📋 Uso de: ${esc(equip.name)}</h3>
+    <p class="note">${equip.watts}W • Mes actual: ${totalHours}h = ${totalKwh} kWh (ajustado por apagones)</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.4rem;margin:.8rem 0">
+      <div><label style="font-size:.75rem">Fecha</label><input type="date" id="usageDate" value="${today}"></div>
+      <div><label style="font-size:.75rem">Inicio</label><input type="time" id="usageStart" value="${now}"></div>
+      <div><label style="font-size:.75rem">Fin</label><input type="time" id="usageEnd"></div>
+    </div>
+    <div style="display:flex;gap:.4rem;margin-bottom:.5rem">
+      <button class="btn" style="flex:1;margin:0;padding:.5rem;font-size:.8rem" onclick="addEquipUsage('${equipId}')">+ Registrar uso</button>
+      <button class="btn btn-sec" style="flex:1;margin:0;padding:.5rem;font-size:.8rem" onclick="addEquipUsage24h('${equipId}')">⚡ 24h completo</button>
+    </div>
+    ${allUsage.length?`<table style="margin-top:.8rem;font-size:.8rem"><tr><th>Fecha</th><th>Horario</th><th>Duración</th><th>kWh</th><th></th></tr>${historyHtml}</table>`:'<p class="empty" style="margin-top:.8rem">Sin registros de uso</p>'}
+  </div></div>`;
+}
+
+async function addEquipUsage(equipId){
+  const date=document.getElementById('usageDate').value;
+  const startTime=document.getElementById('usageStart').value;
+  const endTime=document.getElementById('usageEnd').value;
+  if(!date||!startTime||!endTime){toast('Completa fecha, inicio y fin','error');return;}
+  if(endTime<=startTime){toast('La hora fin debe ser mayor que inicio','error');return;}
+  // Check daily limit
+  const [sh,sm]=startTime.split(':').map(Number);
+  const [eh,em]=endTime.split(':').map(Number);
+  const newMins=(eh*60+em)-(sh*60+sm);
+  const allUsage=(await dbGetAll('equipment_usage')).filter(u=>u.equipId===equipId&&u.date===date);
+  let dayMins=0;
+  allUsage.forEach(u=>{
+    if(u.startTime&&u.endTime){const[a,b]=u.startTime.split(':').map(Number);const[c,d]=u.endTime.split(':').map(Number);dayMins+=(c*60+d)-(a*60+b);}
+  });
+  if(dayMins+newMins>1440){toast(`Excede 24h ese día. Ya tienes ${(dayMins/60).toFixed(1)}h registradas.`,'error');return;}
+  const entry={id:newId(),equipId,date,startTime,endTime,meter:config.activeMeter,createdAt:new Date().toISOString()};
+  await dbPut('equipment_usage',entry);
+  toast('✓ Uso registrado');
+  showEquipUsage(equipId);
+}
+
+async function addEquipUsage24h(equipId){
+  const date=document.getElementById('usageDate').value;
+  if(!date){toast('Selecciona una fecha','error');return;}
+  // Check if already has usage that day
+  const allUsage=(await dbGetAll('equipment_usage')).filter(u=>u.equipId===equipId&&u.date===date);
+  if(allUsage.length>0){toast('Ya hay registros de uso ese día. Elimínalos primero para poner 24h.','error');return;}
+  const entry={id:newId(),equipId,date,startTime:'00:00',endTime:'23:59',meter:config.activeMeter,createdAt:new Date().toISOString()};
+  await dbPut('equipment_usage',entry);
+  toast('✓ 24h registrado');
+  showEquipUsage(equipId);
+}
+
+async function delEquipUsage(id,equipId){
+  if(!await confirmDialog('¿Eliminar este registro de uso?',{type:'danger',confirmText:'Eliminar'}))return;
+  await dbDelete('equipment_usage',id);
+  showEquipUsage(equipId);
+}
