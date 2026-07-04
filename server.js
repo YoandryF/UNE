@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const Database = require('better-sqlite3');
 
 const PORT = parseInt(process.env.PORT || process.argv[2]) || 3000;
@@ -66,9 +67,22 @@ function parseBody(req) {
   });
 }
 
-function json(res, data, status = 200) {
-  res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-  res.end(JSON.stringify(data));
+function json(res, data, status = 200, req = null) {
+  const body = JSON.stringify(data);
+  const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
+  // GZIP if client supports it and response is large enough
+  if (req && req.headers['accept-encoding']?.includes('gzip') && body.length > 1024) {
+    zlib.gzip(body, (err, compressed) => {
+      if (err) { res.writeHead(status, headers); res.end(body); return; }
+      headers['Content-Encoding'] = 'gzip';
+      headers['Content-Length'] = compressed.length;
+      res.writeHead(status, headers);
+      res.end(compressed);
+    });
+  } else {
+    res.writeHead(status, headers);
+    res.end(body);
+  }
 }
 
 function serveStatic(req, res) {
@@ -100,7 +114,7 @@ const server = http.createServer(async (req, res) => {
       const data = table === 'config'
         ? rows.map(r => ({ key: r.key, value: JSON.parse(r.value) }))
         : rows.map(r => table === 'readings' && r.tariffs ? { ...r, tariffs: JSON.parse(r.tariffs) } : r);
-      return json(res, data);
+      return json(res, data, 200, req);
     }
 
     if (req.method === 'POST') {
@@ -147,17 +161,79 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/sync' && req.method === 'GET') {
-    const data = {
-      readings: stmts.getAll('readings').all().map(r => ({ ...r, tariffs: r.tariffs ? JSON.parse(r.tariffs) : null })),
-      equipment: stmts.getAll('equipment').all(),
-      blackouts: stmts.getAll('blackouts').all(),
-      config: stmts.getAll('config').all().map(r => ({ key: r.key, value: JSON.parse(r.value) })),
-    };
-    return json(res, data);
+    const since = url.searchParams.get('since'); // ISO timestamp for incremental sync
+    let data;
+    if (since) {
+      // Incremental: only records updated after 'since'
+      const sinceFilter = (rows, field = 'updatedAt') => rows.filter(r => r[field] && r[field] > since);
+      const allReadings = stmts.getAll('readings').all().map(r => ({ ...r, tariffs: r.tariffs ? JSON.parse(r.tariffs) : null }));
+      const allEquipment = stmts.getAll('equipment').all();
+      const allBlackouts = stmts.getAll('blackouts').all();
+      data = {
+        readings: sinceFilter(allReadings),
+        equipment: allEquipment, // always send all (small dataset)
+        blackouts: allBlackouts, // always send all
+        config: stmts.getAll('config').all().map(r => ({ key: r.key, value: JSON.parse(r.value) })),
+        incremental: true,
+      };
+    } else {
+      data = {
+        readings: stmts.getAll('readings').all().map(r => ({ ...r, tariffs: r.tariffs ? JSON.parse(r.tariffs) : null })),
+        equipment: stmts.getAll('equipment').all(),
+        blackouts: stmts.getAll('blackouts').all(),
+        config: stmts.getAll('config').all().map(r => ({ key: r.key, value: JSON.parse(r.value) })),
+      };
+    }
+    return json(res, data, 200, req);
+  }
+
+  // Ping endpoint (lightweight connectivity check)
+  if (url.pathname === '/api/ping') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ ok: true, ts: Date.now() }));
+    return;
+  }
+
+  // App version endpoint
+  if (url.pathname === '/api/app-version' && req.method === 'GET') {
+    const versionFile = path.join(__dirname, 'data', 'app-version.json');
+    try {
+      const data = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
+      // Make downloadUrl absolute
+      data.downloadUrl = `http://${req.headers.host}${data.downloadUrl}`;
+      return json(res, data);
+    } catch (e) {
+      return json(res, { error: 'Version info not found' }, 404);
+    }
+  }
+
+  // Serve downloads (APK files)
+  if (url.pathname.startsWith('/downloads/')) {
+    const filePath = path.join(__dirname, url.pathname);
+    if (fs.existsSync(filePath)) {
+      const stat = fs.statSync(filePath);
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.android.package-archive',
+        'Content-Length': stat.size,
+        'Content-Disposition': `attachment; filename="${path.basename(filePath)}"`,
+      });
+      fs.createReadStream(filePath).pipe(res);
+      return;
+    }
+    res.writeHead(404); res.end('Not found'); return;
   }
 
   // Static files
   serveStatic(req, res);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n[ERROR] El puerto ${PORT} ya esta en uso.`);
+    console.error(`Usa un puerto diferente: node server.js <puerto>\n`);
+    process.exit(1);
+  }
+  throw err;
 });
 
 server.listen(PORT, () => console.log(`UNE server running at http://localhost:${PORT}`));
